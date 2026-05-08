@@ -231,19 +231,16 @@ def main():
 
                     st.markdown(f"### Tarea: {tipo.replace('_', ' ').capitalize()}")
 
+                    # --- LÓGICA PARA TRADUCCIÓN ---
                     if tipo == 'translate':
                         st.info(f"**Pregunta:** {contenido['question']}")
-                        
-                        # Campo de texto
                         respuesta_usuario = st.text_input("Tu respuesta:", key=f"in_{ex_id}").lower().strip()
                         
-                        # Inicializamos el estado de error para este ejercicio
                         if f"error_{ex_id}" not in st.session_state:
                             st.session_state[f"error_{ex_id}"] = False
 
                         col1, col2 = st.columns(2)
                         
-                        # SI NO HAY ERROR: Mostramos solo el botón de Verificar
                         if not st.session_state[f"error_{ex_id}"]:
                             if col1.button("Verificar", use_container_width=True):
                                 respuestas_validas = [r.lower().strip() for r in str(contenido['answer']).split('|')]
@@ -255,37 +252,31 @@ def main():
                                     guardar_progreso(st.session_state.user.id, ex_id, 5)
                                     st.rerun()
                                 else:
-                                    st.error(f"No coincide. Pista: {contenido.get('hint', 'Revisa de nuevo')}")
                                     st.session_state[f"error_{ex_id}"] = True
-                                    st.rerun() # Recargamos para que aparezcan los nuevos botones
-
-                        # SI HAY ERROR: Cambiamos "Verificar" por "Siguiente" y mostramos el "Reclamo"
+                                    st.rerun()
                         else:
+                            # Feedback de error y respuesta correcta
+                            primera_opcion = str(contenido['answer']).split('|')[0].strip()
+                            st.error(f"❌ Incorrecto. La respuesta correcta es: **{primera_opcion}**")
+                            
                             if col1.button("Siguiente", use_container_width=True):
-                                # El estudiante acepta el error. 
-                                # Calidad 0: Se repite muy pronto (mañana), 0 puntos.
-                                st.info("Repasaremos esto más tarde.")
                                 del st.session_state[f"error_{ex_id}"]
                                 guardar_progreso(st.session_state.user.id, ex_id, 0)
                                 st.rerun()
 
                             if col2.button("Mi respuesta es correcta", use_container_width=True):
-                                # El estudiante reclama.
-                                # Calidad 2: Se mueve de hoy, pero no da puntos.
-                                st.warning("Reclamo registrado. Se revisará sin sumar puntos.")
                                 del st.session_state[f"error_{ex_id}"]
                                 guardar_progreso(st.session_state.user.id, ex_id, 2) 
                                 st.rerun()
 
+                    # --- LÓGICA PARA SELECCIÓN MÚLTIPLE ---
                     elif tipo == 'multiple_choice':
                         st.write(f"**Pregunta:** {contenido['question']}")
                         opcion = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}")
                         
-                        # Inicializamos el estado de error para este ejercicio
                         if f"error_{ex_id}" not in st.session_state:
                             st.session_state[f"error_{ex_id}"] = False
 
-                        # SI NO HAY ERROR: Mostramos el botón de Revisar
                         if not st.session_state[f"error_{ex_id}"]:
                             if st.button("Revisar", use_container_width=True):
                                 if opcion == contenido['answer']:
@@ -295,21 +286,16 @@ def main():
                                     guardar_progreso(st.session_state.user.id, ex_id, 5)
                                     st.rerun()
                                 else:
-                                    st.error("Incorrecto")
                                     st.session_state[f"error_{ex_id}"] = True
                                     st.rerun()
-
-                        # SI HUBO ERROR: Solo mostramos el botón Siguiente
                         else:
+                            # Feedback de error y respuesta correcta
+                            st.error(f"❌ Incorrecto. La opción correcta era: **{contenido['answer']}**")
+                            
                             if st.button("Siguiente", use_container_width=True):
-                                st.info("Repasaremos esto más tarde.")
                                 del st.session_state[f"error_{ex_id}"]
-                                # Calidad 0 para que el algoritmo lo repita pronto
                                 guardar_progreso(st.session_state.user.id, ex_id, 0)
                                 st.rerun()
-            except Exception as e:
-                st.error(f"Error en la práctica: {e}")
-
 # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
         elif menu == "Panel de Administración":
             st.title("📊 Control de Progreso Docente")
