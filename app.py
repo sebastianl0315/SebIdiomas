@@ -197,9 +197,9 @@ def main():
             # 1. DEFINIR RUTA DE APRENDIZAJE POR GRUPO
             # Asegúrate de que estos nombres coincidan con 'group_name' en tu tabla 'groups'
             RUTA_GRADOS = {
-                "10-A 2026": ["vocabulario A1", "verbo to be", "presente simple"],
-                "10-B 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo", "futuro"],
-                "11-A 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo"]
+                "10-A": ["vocabulario A1", "verbo to be", "presente simple"],
+                "11-A": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo", "futuro"],
+                "11-B": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo"]
             }
 
             try:
@@ -268,6 +268,73 @@ def main():
                     st.markdown(f"### Tarea: {tipo.replace('_', ' ').capitalize()}")
 
                     # --- Aquí sigue tu lógica de 'if tipo == translate' y 'multiple_choice' igual que antes ---
+                    # --- LÓGICA PARA TRADUCCIÓN ---
+                    if tipo == 'translate':
+                        st.info(f"**Pregunta:** {contenido['question']}")
+                        respuesta_usuario = st.text_input("Tu respuesta:", key=f"in_{ex_id}").lower().strip()
+                        
+                        if f"error_{ex_id}" not in st.session_state:
+                            st.session_state[f"error_{ex_id}"] = False
+
+                        col1, col2 = st.columns(2)
+                        
+                        if not st.session_state[f"error_{ex_id}"]:
+                            if col1.button("Verificar", use_container_width=True):
+                                respuestas_validas = [r.lower().strip() for r in str(contenido['answer']).split('|')]
+                                
+                                if respuesta_usuario in respuestas_validas:
+                                    st.success("¡Correcto! +10 puntos")
+                                    if f"error_{ex_id}" in st.session_state:
+                                        del st.session_state[f"error_{ex_id}"]
+                                    guardar_progreso(st.session_state.user.id, ex_id, 5)
+                                    st.rerun()
+                                else:
+                                    st.session_state[f"error_{ex_id}"] = True
+                                    st.rerun()
+                        else:
+                            # Feedback de error y respuesta correcta
+                            primera_opcion = str(contenido['answer']).split('|')[0].strip()
+                            st.error(f"❌ Incorrecto. La respuesta correcta es: **{primera_opcion}**")
+                            
+                            if col1.button("Siguiente", use_container_width=True):
+                                del st.session_state[f"error_{ex_id}"]
+                                guardar_progreso(st.session_state.user.id, ex_id, 0)
+                                st.rerun()
+
+                            if col2.button("Mi respuesta es correcta", use_container_width=True):
+                                del st.session_state[f"error_{ex_id}"]
+                                guardar_progreso(st.session_state.user.id, ex_id, 2) 
+                                st.rerun()
+
+                    # --- LÓGICA PARA SELECCIÓN MÚLTIPLE ---
+                    elif tipo == 'multiple_choice':
+                        st.write(f"**Pregunta:** {contenido['question']}")
+                        opcion = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}")
+                        
+                        if f"error_{ex_id}" not in st.session_state:
+                            st.session_state[f"error_{ex_id}"] = False
+
+                        if not st.session_state[f"error_{ex_id}"]:
+                            if st.button("Revisar", use_container_width=True):
+                                if opcion == contenido['answer']:
+                                    st.success("¡Excelente! +10 puntos")
+                                    if f"error_{ex_id}" in st.session_state:
+                                        del st.session_state[f"error_{ex_id}"]
+                                    guardar_progreso(st.session_state.user.id, ex_id, 5)
+                                    st.rerun()
+                                else:
+                                    st.session_state[f"error_{ex_id}"] = True
+                                    st.rerun()
+                        else:
+                            # Feedback de error y respuesta correcta
+                            st.error(f"❌ Incorrecto. La opción correcta era: **{contenido['answer']}**")
+                            
+                            if st.button("Siguiente", use_container_width=True):
+                                del st.session_state[f"error_{ex_id}"]
+                                guardar_progreso(st.session_state.user.id, ex_id, 0)
+                                st.rerun()
+            except Exception as e:
+                st.error(f"Error en la práctica: {e}")
 
 # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
         elif menu == "Panel de Administración":
