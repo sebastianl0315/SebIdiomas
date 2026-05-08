@@ -193,7 +193,35 @@ def main():
 # --- SECCIÓN: PRÁCTICA ---
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
-            
+            import datetime
+
+            # --- LÓGICA DE META SEMANAL ---
+            hace_una_semana = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+
+            # Consultamos los aciertos (calidad 5) de la última semana
+            res_semanal = supabase.table("user_progress")\
+            .select("ease_factor")\
+            .eq("user_id", st.session_state.user.id)\
+            .gte("last_reviewed", hace_una_semana)\
+            .eq("ease_factor", 5)\
+            .execute()
+
+            puntos_semanales = len(res_semanal.data) * 10
+            META = 100
+
+            # Visualización de la Meta
+            st.sidebar.divider()
+            st.sidebar.subheader("🎯 Meta Semanal")
+            progreso_barra = min(puntos_semanales / META, 1.0)
+            st.sidebar.progress(progreso_barra)
+            st.sidebar.write(f"{puntos_semanales} / {META} puntos")
+
+            if puntos_semanales >= META:
+                st.sidebar.success("¡Meta cumplida! 🎉")
+                if menu == "Práctica Diaria":
+                    st.balloons()
+                    st.success(f"¡Felicidades! Ya completaste tus {META} puntos de la semana. Puedes seguir practicando para el ranking, pero tu obligación escolar está cumplida.")          
+
             # 1. DEFINIR RUTA DE APRENDIZAJE POR GRUPO
             # Asegúrate de que estos nombres coincidan con 'group_name' en tu tabla 'groups'
             RUTA_GRADOS = {
