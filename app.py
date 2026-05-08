@@ -197,9 +197,9 @@ def main():
             # 1. DEFINIR RUTA DE APRENDIZAJE POR GRUPO
             # Asegúrate de que estos nombres coincidan con 'group_name' en tu tabla 'groups'
             RUTA_GRADOS = {
-                "10-A 2026": ["vocabulario A1", "verbo to be", "presente simple"],
-                "11-A 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo", "futuro"],
-                "11-B 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo"]
+                "10-A 2026": ["Vocabulary A1", "Verb to be", "Present simple"],
+                "11-A 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous", "Future"],
+                "11-B 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous"]
             }
 
             try:
