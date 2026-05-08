@@ -296,6 +296,9 @@ def main():
                                 del st.session_state[f"error_{ex_id}"]
                                 guardar_progreso(st.session_state.user.id, ex_id, 0)
                                 st.rerun()
+            except Exception as e:
+                st.error(f"Error en la práctica: {e}")
+
 # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
         elif menu == "Panel de Administración":
             st.title("📊 Control de Progreso Docente")
@@ -348,3 +351,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
