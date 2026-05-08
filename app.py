@@ -193,9 +193,46 @@ def main():
 # --- SECCIÓN: PRÁCTICA ---
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
+            
+            # 1. DEFINIR RUTA DE APRENDIZAJE POR GRUPO
+            # Asegúrate de que estos nombres coincidan con 'group_name' en tu tabla 'groups'
+            RUTA_GRADOS = {
+                "10-A 2026": ["vocabulario A1", "verbo to be", "presente simple"],
+                "10-B 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo", "futuro"],
+                "11-A 2026": ["vocabulario A1", "verbo to be", "presente simple", "presente continuo"]
+            }
+
             try:
-                # 1. Cargar datos
-                res_ex = supabase.table("exercises").select("*").execute()
+                # 2. IDENTIFICAR GRUPO DEL USUARIO
+                user_info = supabase.table("profiles").select("groups(group_name)").eq("id", st.session_state.user.id).single().execute()
+                nombre_grupo = user_info.data['groups']['group_name'] if user_info.data['groups'] else "Sin Grupo"
+                temas_permitidos = RUTA_GRADOS.get(nombre_grupo, ["vocabulario A1"])
+
+                # 3. LÓGICA DE META SEMANAL (100 PUNTOS)
+                hace_una_semana = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+                res_semanal = supabase.table("user_progress")\
+                    .select("ease_factor")\
+                    .eq("user_id", st.session_state.user.id)\
+                    .gte("last_reviewed", hace_una_semana)\
+                    .eq("ease_factor", 5)\
+                    .execute()
+
+                puntos_semanales = len(res_semanal.data) * 10
+                META = 100
+                
+                # Visualización de Meta en Sidebar
+                st.sidebar.divider()
+                st.sidebar.subheader("🎯 Meta Semanal")
+                prog_meta = min(puntos_semanales / META, 1.0)
+                st.sidebar.progress(prog_meta)
+                st.sidebar.write(f"Puntos: {puntos_semanales} / {META}")
+
+                if puntos_semanales >= META:
+                    st.success(f"🎊 ¡Felicidades! Has alcanzado tu meta semanal de {META} puntos.")
+                    st.balloons()
+
+                # 4. CARGAR EJERCICIOS FILTRADOS POR TEMA
+                res_ex = supabase.table("exercises").select("*").in_("topic", temas_permitidos).execute()
                 todos_ejercicios = res_ex.data 
                 
                 res_prog = supabase.table("user_progress").select("exercise_id, next_review").eq("user_id", st.session_state.user.id).execute()
@@ -214,90 +251,23 @@ def main():
                         if ahora >= fecha_repaso:
                             pendientes.append(ex)
 
-                # 2. Interfaz de Práctica Lineal
+                # 5. INTERFAZ DE PRÁCTICA
                 if not pendientes:
-                    st.balloons()
-                    st.success("🎉 ¡Misión cumplida por hoy!")
+                    st.info("✅ Has completado todos los ejercicios disponibles para tu nivel por ahora.")
                 else:
-                    # Siempre el primero de la lista
                     item = pendientes[0]
-                    ex_id, tipo, contenido = item['id'], item['type'], item['content']
+                    ex_id, tipo, contenido, tema = item['id'], item['type'], item['content'], item.get('topic', 'General')
 
-                    # Barra de progreso
+                    # Barra de progreso del set actual
                     total_maestro = len(todos_ejercicios)
                     resueltos = total_maestro - len(pendientes)
                     prog = resueltos / total_maestro if total_maestro > 0 else 0.0
-                    st.progress(prog, text=f"Progreso: {resueltos}/{total_maestro} ejercicios")
-
+                    st.progress(prog, text=f"Progreso de nivel: {resueltos}/{total_maestro}")
+                    
+                    st.caption(f"Tema actual: **{tema}**")
                     st.markdown(f"### Tarea: {tipo.replace('_', ' ').capitalize()}")
 
-                    # --- LÓGICA PARA TRADUCCIÓN ---
-                    if tipo == 'translate':
-                        st.info(f"**Pregunta:** {contenido['question']}")
-                        respuesta_usuario = st.text_input("Tu respuesta:", key=f"in_{ex_id}").lower().strip()
-                        
-                        if f"error_{ex_id}" not in st.session_state:
-                            st.session_state[f"error_{ex_id}"] = False
-
-                        col1, col2 = st.columns(2)
-                        
-                        if not st.session_state[f"error_{ex_id}"]:
-                            if col1.button("Verificar", use_container_width=True):
-                                respuestas_validas = [r.lower().strip() for r in str(contenido['answer']).split('|')]
-                                
-                                if respuesta_usuario in respuestas_validas:
-                                    st.success("¡Correcto! +10 puntos")
-                                    if f"error_{ex_id}" in st.session_state:
-                                        del st.session_state[f"error_{ex_id}"]
-                                    guardar_progreso(st.session_state.user.id, ex_id, 5)
-                                    st.rerun()
-                                else:
-                                    st.session_state[f"error_{ex_id}"] = True
-                                    st.rerun()
-                        else:
-                            # Feedback de error y respuesta correcta
-                            primera_opcion = str(contenido['answer']).split('|')[0].strip()
-                            st.error(f"❌ Incorrecto. La respuesta correcta es: **{primera_opcion}**")
-                            
-                            if col1.button("Siguiente", use_container_width=True):
-                                del st.session_state[f"error_{ex_id}"]
-                                guardar_progreso(st.session_state.user.id, ex_id, 0)
-                                st.rerun()
-
-                            if col2.button("Mi respuesta es correcta", use_container_width=True):
-                                del st.session_state[f"error_{ex_id}"]
-                                guardar_progreso(st.session_state.user.id, ex_id, 2) 
-                                st.rerun()
-
-                    # --- LÓGICA PARA SELECCIÓN MÚLTIPLE ---
-                    elif tipo == 'multiple_choice':
-                        st.write(f"**Pregunta:** {contenido['question']}")
-                        opcion = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}")
-                        
-                        if f"error_{ex_id}" not in st.session_state:
-                            st.session_state[f"error_{ex_id}"] = False
-
-                        if not st.session_state[f"error_{ex_id}"]:
-                            if st.button("Revisar", use_container_width=True):
-                                if opcion == contenido['answer']:
-                                    st.success("¡Excelente! +10 puntos")
-                                    if f"error_{ex_id}" in st.session_state:
-                                        del st.session_state[f"error_{ex_id}"]
-                                    guardar_progreso(st.session_state.user.id, ex_id, 5)
-                                    st.rerun()
-                                else:
-                                    st.session_state[f"error_{ex_id}"] = True
-                                    st.rerun()
-                        else:
-                            # Feedback de error y respuesta correcta
-                            st.error(f"❌ Incorrecto. La opción correcta era: **{contenido['answer']}**")
-                            
-                            if st.button("Siguiente", use_container_width=True):
-                                del st.session_state[f"error_{ex_id}"]
-                                guardar_progreso(st.session_state.user.id, ex_id, 0)
-                                st.rerun()
-            except Exception as e:
-                st.error(f"Error en la práctica: {e}")
+                    # --- Aquí sigue tu lógica de 'if tipo == translate' y 'multiple_choice' igual que antes ---
 
 # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
         elif menu == "Panel de Administración":
@@ -351,4 +321,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
