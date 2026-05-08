@@ -109,8 +109,23 @@ def main():
         }
 
         /* Ajuste para inputs en móviles */
+        /* --- MEJORA DE RECUADROS DE TEXTO (INPUTS) --- */
         .stTextInput input {
-            color: #1d3557 !important;
+            background-color: #ffffff !important; /* Fondo blanco puro */
+            color: #1d3557 !important;           /* Texto azul institucional oscuro */
+            border: 2px solid #1d3557 !important; /* Borde definido para que se vea el recuadro */
+            border-radius: 5px !important;
+        }
+
+        /* Color del texto cuando el campo está enfocado (haciendo clic) */
+        .stTextInput input:focus {
+            border-color: #e63946 !important;     /* Borde rojo al escribir */
+            box-shadow: 0 0 0 0.2rem rgba(230, 57, 70, 0.25) !important;
+        }
+
+        /* Asegurar visibilidad del texto en modo oscuro de algunos celulares */
+        input::placeholder {
+            color: #6c757d !important; /* Gris claro para el texto de ayuda */
         }
         </style>
     """, unsafe_allow_html=True)
