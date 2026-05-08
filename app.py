@@ -64,7 +64,32 @@ def main():
     # --- ESTILO VISUAL PERSONALIZADO ---
     st.markdown("""
         <style>
-        .stApp { background-color: #f8f9fa; }
+        /* Fondo principal */
+        .stApp { 
+            background-color: #f8f9fa !important; 
+        }
+
+        /* --- CORRECCIÓN DE VISIBILIDAD DE TEXTOS --- */
+        /* Forzar color oscuro en etiquetas de campos (Email, Contraseña, etc.) */
+        .stWidgetLabel p, label {
+            color: #1d3557 !important;
+            font-weight: bold !important;
+        }
+
+        /* Estilo para las Pestañas (Login / Registro) */
+        button[data-baseweb="tab"] p {
+            color: #1d3557 !important; /* Texto visible */
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: #e63946 !important; /* Pestaña activa en Rojo */
+            color: white !important;
+            border-radius: 5px;
+        }
+        button[data-baseweb="tab"][aria-selected="true"] p {
+            color: white !important;
+        }
+
+        /* --- BOTONES Y BARRA LATERAL --- */
         div.stButton > button {
             background-color: #e63946 !important;
             color: white !important;
@@ -72,9 +97,21 @@ def main():
             border: none !important;
             font-weight: bold !important;
         }
-        div.stButton > button:hover { background-color: #1d3557 !important; }
-        [data-testid="stSidebar"] { background-color: #1d3557 !important; }
-        [data-testid="stSidebar"] * { color: white !important; }
+        div.stButton > button:hover { 
+            background-color: #1d3557 !important; 
+        }
+        
+        [data-testid="stSidebar"] { 
+            background-color: #1d3557 !important; 
+        }
+        [data-testid="stSidebar"] * { 
+            color: white !important; 
+        }
+
+        /* Ajuste para inputs en móviles */
+        .stTextInput input {
+            color: #1d3557 !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
