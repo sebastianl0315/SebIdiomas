@@ -62,33 +62,56 @@ def guardar_progreso(user_id, exercise_id, calidad_respuesta):
 def main():
     st.set_page_config(page_title="SebIdiomas", page_icon="📖", layout="centered")
 
+  # CSS Total para visibilidad en Sidebar Oscuro
     st.markdown("""
         <style>
         .stApp { background-color: #f8f9fa !important; }
-        .stWidgetLabel p, label { color: #1d3557 !important; font-weight: bold !important; }
-        button[data-baseweb="tab"] p { color: #1d3557 !important; }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            background-color: #e63946 !important;
-            color: white !important;
-            border-radius: 5px;
+        
+        /* Texto principal en azul oscuro */
+        .stMarkdown p, .stText, label, .stWidgetLabel p, div[data-testid="stMarkdownContainer"] p { 
+            color: #1d3557 !important; 
+            font-weight: 500 !important; 
         }
-        button[data-baseweb="tab"][aria-selected="true"] p { color: white !important; }
+        
+        /* --- ESTILOS BARRA LATERAL (FONDO OSCURO) --- */
+        [data-testid="stSidebar"] { 
+            background-color: #1d3557 !important; 
+        }
+        
+        /* Forzar BLANCO en todos los elementos posibles del sidebar */
+        [data-testid="stSidebar"] h1, 
+        [data-testid="stSidebar"] p, 
+        [data-testid="stSidebar"] label, 
+        [data-testid="stSidebar"] span,
+        [data-testid="stSidebar"] .stWidgetLabel,
+        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { 
+            color: white !important; 
+            font-weight: 600 !important;
+        }
+
+        /* Específico para el texto de la barra de progreso (Meta Semanal) */
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: white !important;
+        }
+        
+        /* Asegurar visibilidad del Radio Button en sidebar */
+        [data-testid="stSidebar"] div[data-testid="stRadio"] label p {
+            color: white !important;
+        }
+
+        /* --- BOTONES Y TABS --- */
         div.stButton > button {
             background-color: #e63946 !important;
             color: white !important;
             border-radius: 8px !important;
-            border: none !important;
             font-weight: bold !important;
         }
-        div.stButton > button:hover { background-color: #1d3557 !important; }
-        [data-testid="stSidebar"] { background-color: #1d3557 !important; }
-        [data-testid="stSidebar"] * { color: white !important; }
-        .stTextInput input {
-            background-color: #ffffff !important;
-            color: #1d3557 !important;
-            border: 2px solid #1d3557 !important;
-            border-radius: 5px !important;
+        
+        button[data-baseweb="tab"] p { color: #1d3557 !important; }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: #e63946 !important;
         }
+        button[data-baseweb="tab"][aria-selected="true"] p { color: white !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -121,10 +144,32 @@ def main():
         if st.session_state.user.email == "profesebastianloaiza@gmail.com":
             opciones.append("Panel de Administración")
         menu = st.sidebar.radio("Ir a:", opciones)
-        if st.sidebar.button("Cerrar Sesión"):
+
+        # --- BARRA DE PROGRESO (META SEMANAL) ---
+        st.sidebar.divider()
+        try:
+            # Consultar ejercicios completados en la última semana
+            una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            progreso_semana = supabase.table("user_progress")\
+                .select("id")\
+                .eq("user_id", st.session_state.user.id)\
+                .gt("last_reviewed", una_semana_atras)\
+                .execute()
+            
+            completados = len(progreso_semana.data)
+            meta = 20  # Puedes ajustar este número
+            porcentaje = min(completados / meta, 1.0)
+            
+            st.sidebar.write(f"📊 Meta Semanal: {completados}/{meta}")
+            st.sidebar.progress(porcentaje)
+            if porcentaje >= 1.0:
+                st.sidebar.success("¡Meta alcanzada! 🎯")
+        except Exception:
+
+         if st.sidebar.button("Cerrar Sesión"):
             st.session_state.user = None
             st.rerun()
-
+   
         # --- SECCIÓN: RANKING ---
         if menu == "Ranking de la Clase":
             st.title("🏆 Hall of Fame")
@@ -144,8 +189,6 @@ def main():
         # --- SECCIÓN: PRÁCTICA ---
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
-            
-            # 1. Definición de rutas (puedes mover esto fuera de la función si prefieres)
             RUTA_GRADOS = {
                 "10-A 2026": ["Vocabulary A1", "Verb to be", "Present simple"],
                 "11-A 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous", "Future"],
@@ -153,128 +196,132 @@ def main():
             }
 
             try:
-                # 2. Inicializar estados de sesión para la práctica si no existen
-                if "ejercicio_actual" not in st.session_state:
-                    st.session_state.ejercicio_actual = None
-                if "respondido" not in st.session_state:
-                    st.session_state.respondido = False
-                if "es_correcto" not in st.session_state:
-                    st.session_state.es_correcto = False
+                if "ejercicio_actual" not in st.session_state: st.session_state.ejercicio_actual = None
+                if "respondido" not in st.session_state: st.session_state.respondido = False
+                if "es_correcto" not in st.session_state: st.session_state.es_correcto = False
 
-                # 3. Cálculo de Meta Semanal (Visualización en Sidebar)
-                hace_una_semana = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).isoformat()
-                res_semanal = supabase.table("user_progress").select("ease_factor").eq("user_id", str(st.session_state.user.id)).gte("last_reviewed", hace_una_semana).execute()
-                
-                puntos_totales = sum([10 if r['ease_factor'] >= 2.5 else 5 if r['ease_factor'] >= 2.0 else 2 for r in res_semanal.data]) if res_semanal.data else 0
-                
-                META = 100
-                st.sidebar.divider()
-                st.sidebar.subheader("🎯 Meta Semanal")
-                st.sidebar.progress(min(puntos_totales / META, 1.0))
-                st.sidebar.write(f"Puntos: {puntos_totales} / {META}")
-
-                # 4. Lógica de Selección de Ejercicio (Solo si no hay uno activo)
                 if st.session_state.ejercicio_actual is None:
                     user_info = supabase.table("profiles").select("groups(group_name)").eq("id", st.session_state.user.id).single().execute()
                     nombre_grupo = user_info.data['groups']['group_name'] if user_info.data['groups'] else "Sin Grupo"
                     temas_permitidos = RUTA_GRADOS.get(nombre_grupo, ["Vocabulary A1"])
                     
-                    # Cargar ejercicios y progreso
                     res_ex = supabase.table("exercises").select("*").in_("topic", temas_permitidos).execute()
                     res_prog = supabase.table("user_progress").select("exercise_id, next_review").eq("user_id", st.session_state.user.id).execute()
-                    
                     progreso_map = {p['exercise_id']: p['next_review'] for p in res_prog.data}
                     ahora = datetime.datetime.now(datetime.timezone.utc)
-                    
                     pendientes = [ex for ex in res_ex.data if ex['id'] not in progreso_map or ahora >= datetime.datetime.fromisoformat(progreso_map[ex['id']].replace('Z', '+00:00'))]
 
                     if pendientes:
-                        # Priorizar nuevos (70%) o repasos
-                        nuevos = [ex for ex in pendientes if ex['id'] not in progreso_map]
-                        repasos = [ex for ex in pendientes if ex['id'] in progreso_map]
-                        
-                        if nuevos and repasos:
-                            st.session_state.ejercicio_actual = random.choice(nuevos) if random.random() < 0.7 else random.choice(repasos)
-                        else:
-                            st.session_state.ejercicio_actual = random.choice(pendientes)
-                        
+                        st.session_state.ejercicio_actual = random.choice(pendientes)
                         st.session_state.respondido = False
                         st.session_state.es_correcto = False
                         st.rerun()
 
-                # 5. Renderizado del Ejercicio Persistente
                 if st.session_state.ejercicio_actual:
                     item = st.session_state.ejercicio_actual
                     ex_id, tipo, contenido = item['id'], item['type'], item['content']
-                    es_repaso = ex_id in (progreso_map if 'progreso_map' in locals() else {})
-
-                    st.markdown(f":{'orange' if es_repaso else 'green'}[**{'🔄 REPASO' if es_repaso else '✨ NUEVO'}**] | Tema: **{item.get('topic', 'General')}**")
-
-                    # Interfaz según tipo
+                    st.markdown(f"### Tema: {item.get('topic', 'General')}")
+                    
                     if tipo == 'translate':
                         st.info(f"**Pregunta:** {contenido['question']}")
-                        resp_user = st.text_input("Tu respuesta:", key=f"input_{ex_id}", disabled=st.session_state.respondido).lower().strip()
+                        resp_user = st.text_input("Tu respuesta:", key=f"in_{ex_id}", disabled=st.session_state.respondido).lower().strip()
                     else:
                         st.write(f"**Pregunta:** {contenido['question']}")
-                        resp_user = st.radio("Opciones:", contenido['options'], key=f"radio_{ex_id}", disabled=st.session_state.respondido)
+                        resp_user = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}", disabled=st.session_state.respondido)
 
-                    # Botones de Acción
                     if not st.session_state.respondido:
                         if st.button("Verificar", use_container_width=True):
                             validas = [r.lower().strip() for r in str(contenido['answer']).split('|')]
                             st.session_state.es_correcto = (resp_user in validas) if tipo == 'translate' else (resp_user == contenido['answer'])
                             st.session_state.respondido = True
-                            
-                            # Guardar inmediatamente si es correcto
-                            if st.session_state.es_correcto:
-                                guardar_progreso(st.session_state.user.id, ex_id, 5)
+                            if st.session_state.es_correcto: guardar_progreso(st.session_state.user.id, ex_id, 5)
                             st.rerun()
                     else:
-                        # Mostrar Feedback
                         if st.session_state.es_correcto:
-                            st.success("¡Excelente trabajo! ✨")
+                            st.success("¡Excelente!")
                         else:
-                            st.error(f"❌ La respuesta correcta era: **{str(contenido['answer']).split('|')[0]}**")
-                            if tipo == 'translate' and st.button("Mi respuesta es correcta"):
-                                guardar_progreso(st.session_state.user.id, ex_id, 2)
-                                st.session_state.es_correcto = True
-                                st.rerun()
-
+                            st.error(f"❌ La respuesta correcta era: {str(contenido['answer']).split('|')[0]}")
+                            if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
+                                try:
+                                    # Usamos el ID directamente del objeto de sesión
+                                    reporte = {
+                                    "user_id": st.session_state.user.id, 
+                                    "exercise_id": ex_id,
+                                    "user_answer": str(resp_user),
+                                    "expected_answer": str(contenido['answer']),
+                                    "status": "pending"
+                                    }
+        
+                                    # Ejecutar inserción
+                                    res = supabase.table("exercise_reports").insert(reporte).execute()
+        
+                                    # Si no hubo excepción, procedemos
+                                    guardar_progreso(st.session_state.user.id, ex_id, 2)
+                                    st.session_state.es_correcto = True
+                                    st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
+                                    st.rerun()
+        
+                                except Exception as e:
+                                    # Si falla, imprimimos el error completo para debuggear
+                                    st.error(f"Error al enviar: {e}")
+                                    #except Exception:
+                                    #st.warning("No se pudo enviar el reporte automáticamente, pero tu observación fue tomada en cuenta.")
+                                    #st.session_state.es_correcto = True
+   
                         if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
-                            # Si falló y no corrigió, guardar como error
-                            if not st.session_state.es_correcto:
-                                guardar_progreso(st.session_state.user.id, ex_id, 0)
-                            
-                            # Limpiar estado para el próximo ejercicio
+                            if not st.session_state.es_correcto: guardar_progreso(st.session_state.user.id, ex_id, 0)
                             st.session_state.ejercicio_actual = None
                             st.rerun()
                 else:
-                    st.info("✅ ¡Felicidades! Has terminado tus ejercicios pendientes.")
-
+                    st.info("✅ Has completado todo por hoy.")
             except Exception as e:
-                st.error(f"Error en la práctica: {e}")
+                st.error(f"Error: {e}")
 
         # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
+            st.subheader("🚩 Reportes de Errores")
             try:
-                res_estudiantes = supabase.table("profiles").select("id, username, groups(group_name)").execute()
-                df_estudiantes = res_estudiantes.data
-                res_stats = supabase.table("user_progress").select("user_id, ease_factor").execute()
-                df_stats = res_stats.data
-
-                if df_estudiantes:
-                    nombres_grupos = sorted(list(set([e['groups']['group_name'] for e in df_estudiantes if e['groups']])))
-                    seleccion = st.selectbox("Grupo:", nombres_grupos)
-                    estudiantes_grupo = [e for e in df_estudiantes if e['groups'] and e['groups']['group_name'] == seleccion]
-                    
-                    for est in estudiantes_grupo:
-                        progreso_est = [s for s in df_stats if s['user_id'] == est['id']]
-                        aciertos = len([s for s in progreso_est if s['ease_factor'] >= 2.5])
-                        with st.expander(f"👤 {est['username']} - {aciertos} aciertos"):
-                            st.metric("Intentos totales", len(progreso_est))
+                res_reports = supabase.table("exercise_reports").select("id, user_answer, expected_answer, profiles(username), exercises(content, topic)").eq("status", "pending").execute()
+                if not res_reports.data:
+                    st.write("No hay reportes nuevos.")
+                else:
+                    for report in res_reports.data:
+                        nombre_alumno = report['profiles']['username'] if report['profiles'] else "Usuario"
+                        with st.expander(f"Reporte de {nombre_alumno} - {report['exercises']['topic']}"):
+                            st.write(f"**Pregunta:** {report['exercises']['content']['question']}")
+                            st.write(f"**Alumno dijo:** {report['user_answer']}")
+                            st.write(f"**Sistema esperaba:** {report['expected_answer']}")
+                            
+                            c1, c2 = st.columns(2)
+                            if c1.button("Aprobar Reclamo", key=f"ap_{report['id']}", use_container_width=True):
+                                supabase.table("exercise_reports").update({"status": "approved"}).eq("id", report['id']).execute()
+                                st.success("Aprobado")
+                                st.rerun()
+                            if c2.button("Rechazar", key=f"re_{report['id']}", use_container_width=True):
+                                supabase.table("exercise_reports").update({"status": "rejected"}).eq("id", report['id']).execute()
+                                st.warning("Rechazado")
+                                st.rerun()
             except Exception as e:
-                st.error(f"Error al cargar el panel: {e}")
+                st.error(f"Error cargando reportes: {e}")
+
+            st.divider()
+            st.subheader("Estudiantes por Grupo")
+            try:
+                res_est = supabase.table("profiles").select("id, username, groups(group_name)").execute()
+                if res_est.data:
+                    nombres_grupos = sorted(list(set([e['groups']['group_name'] for e in res_est.data if e['groups']])))
+                    sel = st.selectbox("Seleccionar Grupo:", nombres_grupos)
+                    for est in [e for e in res_est.data if e['groups'] and e['groups']['group_name'] == sel]:
+                        st.write(f"👤 {est['username']}")
+            except Exception as e:
+                st.error(f"Error panel: {e}")
+        # --- BOTÓN DE CERRAR SESIÓN ---
+        # Lo colocamos al final de la barra lateral con un separador
+        st.sidebar.divider()
+        if st.sidebar.button("Cerrar Sesión", use_container_width=True):
+            st.session_state.user = None
+            st.rerun()
 
 if __name__ == "__main__":
     main()
