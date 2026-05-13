@@ -135,55 +135,45 @@ def main():
     st.set_page_config(page_title="SebIdiomas", page_icon="📖", layout="centered")
 
       # CSS Total para visibilidad en Sidebar Oscuro
-    st.markdown("""
+        st.markdown("""
         <style>
+        /* Fondo general de la app */
         .stApp { background-color: #f8f9fa !important; }
         
-        /* Texto principal en azul oscuro */
-        .stMarkdown p, .stText, label, .stWidgetLabel p, div[data-testid="stMarkdownContainer"] p { 
+        /* Forzar visibilidad de Títulos y Subtítulos en móviles */
+        h1, h2, h3, span[data-baseweb="typewriter"] {
+            color: #1d3557 !important;
+            opacity: 1 !important;
+            display: block !important;
+        }
+
+        /* Ajuste de márgenes en móviles para que no se esconda el contenido */
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        
+        /* Texto principal */
+        .stMarkdown p, .stText, label, .stWidgetLabel p { 
             color: #1d3557 !important; 
             font-weight: 500 !important; 
         }
         
-        /* --- ESTILOS BARRA LATERAL (FONDO OSCURO) --- */
-        [data-testid="stSidebar"] { 
-            background-color: #1d3557 !important; 
-        }
+        /* --- BARRA LATERAL --- */
+        [data-testid="stSidebar"] { background-color: #1d3557 !important; }
+        [data-testid="stSidebar"] * { color: white !important; }
         
-        /* Forzar BLANCO en todos los elementos posibles del sidebar */
-        [data-testid="stSidebar"] h1, 
-        [data-testid="stSidebar"] p, 
-        [data-testid="stSidebar"] label, 
-        [data-testid="stSidebar"] span,
-        [data-testid="stSidebar"] .stWidgetLabel,
-        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { 
-            color: white !important; 
-            font-weight: 600 !important;
-        }
-
-        /* Específico para el texto de la barra de progreso (Meta Semanal) */
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-            color: white !important;
-        }
-        
-        /* Asegurar visibilidad del Radio Button en sidebar */
-        [data-testid="stSidebar"] div[data-testid="stRadio"] label p {
-            color: white !important;
-        }
-
-        /* --- BOTONES Y TABS --- */
+        /* Botones grandes para dedos (touch friendly) */
         div.stButton > button {
             background-color: #e63946 !important;
             color: white !important;
-            border-radius: 8px !important;
-            font-weight: bold !important;
+            border-radius: 10px !important;
+            height: 3em !important;
+            width: 100% !important;
+            margin-top: 10px !important;
         }
-        
-        button[data-baseweb="tab"] p { color: #1d3557 !important; }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            background-color: #e63946 !important;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] p { color: white !important; }
         </style>
     """, unsafe_allow_html=True)
 
