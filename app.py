@@ -388,6 +388,19 @@ def main():
             except Exception as e:
                 st.error(f"Error cargando reportes: {e}")
 
+            st.divider()
+            st.subheader("Estudiantes por Grupo")
+            try:
+                res_est = supabase.table("profiles").select("id, username, groups(group_name)").execute()
+                if res_est.data:
+                    nombres_grupos = sorted(list(set([e['groups']['group_name'] for e in res_est.data if e['groups']])))
+                    sel = st.selectbox("Seleccionar Grupo:", nombres_grupos)
+                    for est in [e for e in res_est.data if e['groups'] and e['groups']['group_name'] == sel]:
+                        st.write(f"👤 {est['username']}")
+            except Exception as e:
+                st.error(f"Error panel: {e}")
+
+
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
             st.session_state.user = None
