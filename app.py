@@ -133,9 +133,8 @@ def guardar_progreso(user_id, exercise_id, calidad_respuesta):
 
 def main():
     st.set_page_config(page_title="SebIdiomas", page_icon="📖", layout="centered")
-
-      # CSS Total para visibilidad en Sidebar Oscuro
-        st.markdown("""
+    
+    st.markdown("""
         <style>
         /* Fondo general de la app */
         .stApp { background-color: #f8f9fa !important; }
@@ -176,8 +175,6 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-
-
 
     if "user" not in st.session_state:
         st.session_state.user = None
@@ -241,7 +238,7 @@ def main():
             st.title("📚 Practice Room")
             RUTA_GRADOS = {
                 "10-A 2026": ["Vocabulary A1", "Verb to be", "Present simple"],
-                "11-A 2026": ["Personal Information Basics"],
+                "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple", "Present simple Third Person"],
                 "11-B 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous"]
             }
 
