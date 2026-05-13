@@ -173,6 +173,19 @@ def main():
             width: 100% !important;
             margin-top: 10px !important;
         }
+        /* Forzar visibilidad del texto de la meta semanal en el sidebar */
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: #ffffff !important;
+            font-size: 1.1rem !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* Hacer la barra de progreso más alta para que sea fácil de ver en touch */
+        [data-testid="stSidebar"] .stProgress > div > div > div > div {
+            background-color: #e63946 !important;
+            height: 10px;
+        }
+        
         </style>
     """, unsafe_allow_html=True)
 
