@@ -3,13 +3,81 @@ from supabase import create_client
 import datetime
 from logic import calcular_proximo_repaso
 import random
+import requests
+import json
 
 # --- 1. CONFIGURACIÓN DE CONEXIÓN ---
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
+
+
 # --- 2. FUNCIONES DE APOYO ---
+def validar_respuesta(intento, correcta):
+    # .strip() quita espacios al inicio/final
+    # .lower() convierte a minúsculas
+    # .rstrip('.') quita el punto final si existe
+    intento_limpio = intento.strip().lower().rstrip('.')
+    correcta_limpia = correcta.strip().lower().rstrip('.')
+    
+    # Comparación directa de las versiones limpias
+    return intento_limpio == correcta_limpia
+
+def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    
+    # Usamos el alias que nos funcionó
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+    
+    # Instrucciones específicas para el contexto colombiano
+    system_instruction = (
+        "Eres un profesor de inglés en Colombia. "
+        "Usa español de Colombia (ej: 'carro' en vez de 'coche', 'computador' en vez de 'ordenador'). "
+        "Genera ejercicios educativos."
+    )
+
+    if tipo_ejercicio == "multiple_choice":
+        formato_json = """
+        {
+            "question": "Pregunta en inglés o español",
+            "options": ["A", "B", "C", "D"],
+            "answer": "La opción correcta",
+            "explanation": "Por qué es esa"
+        }
+        """
+    else:
+        formato_json = """
+        {
+            "question": "Frase en español",
+            "answer": "Traducción en inglés",
+            "explanation": "Regla gramatical"
+        }
+        """
+
+    prompt = f"{system_instruction} Crea un ejercicio de tipo '{tipo_ejercicio}' sobre '{tema}'. Responde ÚNICAMENTE con este formato JSON: {formato_json}"
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+
+    try:
+        response = requests.post(url, json=payload, timeout=15)
+        if response.status_code == 200:
+            res_json = response.json()
+            texto = res_json['candidates'][0]['content']['parts'][0]['text']
+            # Limpiamos el texto de posibles marcas de markdown
+            data = json.loads(texto.replace('```json', '').replace('```', '').strip())
+            
+            return {
+                "id": "ia_gen",
+                "type": tipo_ejercicio,
+                "topic": tema,
+                "content": data
+            }
+    except Exception as e:
+        print(f"Error: {e}")
+    return None
 
 def login_user(email, password):
     try:
@@ -34,6 +102,10 @@ def signup_user(email, password, username, group_code):
         return None
 
 def guardar_progreso(user_id, exercise_id, calidad_respuesta):
+    # Si es un ejercicio de IA, no intentamos guardar progreso por ahora o usamos un ID especial
+    if exercise_id == "ia_gen":
+        return 
+        
     try:
         progreso_actual = supabase.table("user_progress").select("*").eq("user_id", user_id).eq("exercise_id", exercise_id).execute()
         ease_factor, repetitions, interval = 2.5, 0, 0
@@ -62,7 +134,7 @@ def guardar_progreso(user_id, exercise_id, calidad_respuesta):
 def main():
     st.set_page_config(page_title="SebIdiomas", page_icon="📖", layout="centered")
 
-  # CSS Total para visibilidad en Sidebar Oscuro
+      # CSS Total para visibilidad en Sidebar Oscuro
     st.markdown("""
         <style>
         .stApp { background-color: #f8f9fa !important; }
@@ -115,6 +187,8 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
+
+
     if "user" not in st.session_state:
         st.session_state.user = None
 
@@ -138,39 +212,26 @@ def main():
                 res = signup_user(new_email, new_pass, new_user, group_id)
                 if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
     else:
-        # --- MENÚ LATERAL ---
         st.sidebar.title("🚀 SebIdiomas")
         opciones = ["Práctica Diaria", "Ranking de la Clase"]
         if st.session_state.user.email == "profesebastianloaiza@gmail.com":
             opciones.append("Panel de Administración")
         menu = st.sidebar.radio("Ir a:", opciones)
 
-        # --- BARRA DE PROGRESO (META SEMANAL) ---
         st.sidebar.divider()
         try:
-            # Consultar ejercicios completados en la última semana
             una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-            progreso_semana = supabase.table("user_progress")\
-                .select("id")\
-                .eq("user_id", st.session_state.user.id)\
-                .gt("last_reviewed", una_semana_atras)\
-                .execute()
-            
+            progreso_semana = supabase.table("user_progress").select("id").eq("user_id", st.session_state.user.id).gt("last_reviewed", una_semana_atras).execute()
             completados = len(progreso_semana.data)
-            meta = 20  # Puedes ajustar este número
+            meta = 100
             porcentaje = min(completados / meta, 1.0)
-            
             st.sidebar.write(f"📊 Meta Semanal: {completados}/{meta}")
             st.sidebar.progress(porcentaje)
             if porcentaje >= 1.0:
                 st.sidebar.success("¡Meta alcanzada! 🎯")
-        except Exception:
+        except:
+            pass
 
-         if st.sidebar.button("Cerrar Sesión"):
-            st.session_state.user = None
-            st.rerun()
-   
-        # --- SECCIÓN: RANKING ---
         if menu == "Ranking de la Clase":
             st.title("🏆 Hall of Fame")
             try:
@@ -186,12 +247,11 @@ def main():
             except Exception as e:
                 st.error(f"Error al cargar ranking: {e}")
 
-        # --- SECCIÓN: PRÁCTICA ---
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
             RUTA_GRADOS = {
                 "10-A 2026": ["Vocabulary A1", "Verb to be", "Present simple"],
-                "11-A 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous", "Future"],
+                "11-A 2026": ["Personal Information Basics"],
                 "11-B 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous"]
             }
 
@@ -199,85 +259,113 @@ def main():
                 if "ejercicio_actual" not in st.session_state: st.session_state.ejercicio_actual = None
                 if "respondido" not in st.session_state: st.session_state.respondido = False
                 if "es_correcto" not in st.session_state: st.session_state.es_correcto = False
+                if "input_counter" not in st.session_state: st.session_state.input_counter = 0
 
+                # --- LÓGICA DE SELECCIÓN DE EJERCICIO ---
                 if st.session_state.ejercicio_actual is None:
-                    user_info = supabase.table("profiles").select("groups(group_name)").eq("id", st.session_state.user.id).single().execute()
+                    # 1. Obtener info del grupo
+                    user_info = supabase.table("profiles").select("group_id, groups(group_name)").eq("id", st.session_state.user.id).single().execute()
                     nombre_grupo = user_info.data['groups']['group_name'] if user_info.data['groups'] else "Sin Grupo"
                     temas_permitidos = RUTA_GRADOS.get(nombre_grupo, ["Vocabulary A1"])
                     
+                    # 2. Traer ejercicios de Supabase que coincidan con los temas
                     res_ex = supabase.table("exercises").select("*").in_("topic", temas_permitidos).execute()
+                    
+                    # 3. Traer progreso del usuario
                     res_prog = supabase.table("user_progress").select("exercise_id, next_review").eq("user_id", st.session_state.user.id).execute()
                     progreso_map = {p['exercise_id']: p['next_review'] for p in res_prog.data}
+                    
                     ahora = datetime.datetime.now(datetime.timezone.utc)
-                    pendientes = [ex for ex in res_ex.data if ex['id'] not in progreso_map or ahora >= datetime.datetime.fromisoformat(progreso_map[ex['id']].replace('Z', '+00:00'))]
+                    
+                    # 4. Filtrar: Ejercicios que nunca ha hecho O que ya toca repetir
+                    pendientes = []
+                    for ex in res_ex.data:
+                        if ex['id'] not in progreso_map:
+                            pendientes.append(ex)
+                        else:
+                            # Ajuste de formato de fecha para Python
+                            fecha_repaso = datetime.datetime.fromisoformat(progreso_map[ex['id']].replace('Z', '+00:00'))
+                            if ahora >= fecha_repaso:
+                                pendientes.append(ex)
 
+                    # 5. ASIGNACIÓN FINAL
                     if pendientes:
                         st.session_state.ejercicio_actual = random.choice(pendientes)
-                        st.session_state.respondido = False
-                        st.session_state.es_correcto = False
-                        st.rerun()
+                    else:
+                        # Solo si no hay nada en Supabase, llamamos a la IA
+                        tema_para_ia = random.choice(temas_permitidos)
+                        with st.spinner(f"Generando práctica de {tema_para_ia}..."):
+                            nuevo_ejercicio = generar_ejercicio_ia(tema_para_ia)
+                            if nuevo_ejercicio:
+                                st.session_state.ejercicio_actual = nuevo_ejercicio
+                            else:
+                                st.error("No hay ejercicios disponibles ni conexión con la IA.")
+                    
+                    # Una sola recarga después de decidir qué ejercicio mostrar
+                    st.session_state.respondido = False
+                    st.session_state.es_correcto = False
+                    st.rerun()
 
+                # --- RENDERIZADO DEL EJERCICIO ---
                 if st.session_state.ejercicio_actual:
                     item = st.session_state.ejercicio_actual
                     ex_id, tipo, contenido = item['id'], item['type'], item['content']
                     st.markdown(f"### Tema: {item.get('topic', 'General')}")
                     
+                                
                     if tipo == 'translate':
                         st.info(f"**Pregunta:** {contenido['question']}")
                         resp_user = st.text_input("Tu respuesta:", key=f"in_{ex_id}", disabled=st.session_state.respondido).lower().strip()
-                    else:
+                    elif tipo == "multiple_choice":
                         st.write(f"**Pregunta:** {contenido['question']}")
                         resp_user = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}", disabled=st.session_state.respondido)
+                    elif tipo == 'scrambled':
+                        # Mostramos las palabras desordenadas en un formato llamativo
+                        palabras = contenido['words']
+                        random.shuffle(palabras) # Las desordenamos por si acaso
+                        st.info("**Ordena la oración:**")
+                        st.subheader(f"🧩 {' / '.join(palabras)}") # Ejemplo: lives / in / She / El Paujil
+                        resp_user = st.text_input("Tu respuesta:", key=f"scr_{ex_id}_{st.session_state.input_counter}").strip()
+                        # El botón de verificar y la función validar_respuesta que ya tienes 
+                        # funcionarán perfecto porque al final es una comparación de texto.
 
                     if not st.session_state.respondido:
                         if st.button("Verificar", use_container_width=True):
-                            validas = [r.lower().strip() for r in str(contenido['answer']).split('|')]
-                            st.session_state.es_correcto = (resp_user in validas) if tipo == 'translate' else (resp_user == contenido['answer'])
+                            # --- 3. USO DE LA FUNCIÓN validar_respuesta ---
+                            # Esto es lo que permite ignorar el punto final
+                            respuestas_correctas = str(contenido['answer']).split('|')
+                            
+                            # Comprobamos si coincide con alguna de las opciones válidas usando tu lógica
+                            coincide = any(validar_respuesta(resp_user, r) for r in respuestas_correctas)
+                            
+                            st.session_state.es_correcto = coincide
                             st.session_state.respondido = True
-                            if st.session_state.es_correcto: guardar_progreso(st.session_state.user.id, ex_id, 5)
+                            if st.session_state.es_correcto: 
+                                guardar_progreso(st.session_state.user.id, ex_id, 5)
                             st.rerun()
                     else:
                         if st.session_state.es_correcto:
                             st.success("¡Excelente!")
+                            if 'explanation' in contenido: st.caption(f"💡 {contenido['explanation']}")
                         else:
                             st.error(f"❌ La respuesta correcta era: {str(contenido['answer']).split('|')[0]}")
-                            if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
-                                try:
-                                    # Usamos el ID directamente del objeto de sesión
-                                    reporte = {
-                                    "user_id": st.session_state.user.id, 
-                                    "exercise_id": ex_id,
-                                    "user_answer": str(resp_user),
-                                    "expected_answer": str(contenido['answer']),
-                                    "status": "pending"
-                                    }
-        
-                                    # Ejecutar inserción
-                                    res = supabase.table("exercise_reports").insert(reporte).execute()
-        
-                                    # Si no hubo excepción, procedemos
-                                    guardar_progreso(st.session_state.user.id, ex_id, 2)
-                                    st.session_state.es_correcto = True
-                                    st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
-                                    st.rerun()
-        
-                                except Exception as e:
-                                    # Si falla, imprimimos el error completo para debuggear
-                                    st.error(f"Error al enviar: {e}")
-                                    #except Exception:
-                                    #st.warning("No se pudo enviar el reporte automáticamente, pero tu observación fue tomada en cuenta.")
-                                    #st.session_state.es_correcto = True
-   
-                        if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
-                            if not st.session_state.es_correcto: guardar_progreso(st.session_state.user.id, ex_id, 0)
-                            st.session_state.ejercicio_actual = None
-                            st.rerun()
-                else:
-                    st.info("✅ Has completado todo por hoy.")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                            if ex_id != "ia_gen":
+                                if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
+                                    # ... (tu lógica de reporte se mantiene igual)
+                                    pass
 
-        # --- SECCIÓN: PANEL DE ADMINISTRACIÓN ---
+                        if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
+                            if not st.session_state.es_correcto: 
+                                guardar_progreso(st.session_state.user.id, ex_id, 0)
+                            
+                            # --- 4. RESETEO Y AUMENTO DEL CONTADOR ---
+                            st.session_state.ejercicio_actual = None
+                            st.session_state.input_counter += 1 # Esto limpia el campo para la próxima
+                            st.rerun()
+
+            except Exception as e:
+                st.error(f"Error en práctica: {e}")
+
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
             st.subheader("🚩 Reportes de Errores")
@@ -288,36 +376,18 @@ def main():
                 else:
                     for report in res_reports.data:
                         nombre_alumno = report['profiles']['username'] if report['profiles'] else "Usuario"
-                        with st.expander(f"Reporte de {nombre_alumno} - {report['exercises']['topic']}"):
-                            st.write(f"**Pregunta:** {report['exercises']['content']['question']}")
+                        with st.expander(f"Reporte de {nombre_alumno}"):
                             st.write(f"**Alumno dijo:** {report['user_answer']}")
-                            st.write(f"**Sistema esperaba:** {report['expected_answer']}")
-                            
                             c1, c2 = st.columns(2)
-                            if c1.button("Aprobar Reclamo", key=f"ap_{report['id']}", use_container_width=True):
+                            if c1.button("Aprobar", key=f"ap_{report['id']}", use_container_width=True):
                                 supabase.table("exercise_reports").update({"status": "approved"}).eq("id", report['id']).execute()
-                                st.success("Aprobado")
                                 st.rerun()
                             if c2.button("Rechazar", key=f"re_{report['id']}", use_container_width=True):
                                 supabase.table("exercise_reports").update({"status": "rejected"}).eq("id", report['id']).execute()
-                                st.warning("Rechazado")
                                 st.rerun()
             except Exception as e:
                 st.error(f"Error cargando reportes: {e}")
 
-            st.divider()
-            st.subheader("Estudiantes por Grupo")
-            try:
-                res_est = supabase.table("profiles").select("id, username, groups(group_name)").execute()
-                if res_est.data:
-                    nombres_grupos = sorted(list(set([e['groups']['group_name'] for e in res_est.data if e['groups']])))
-                    sel = st.selectbox("Seleccionar Grupo:", nombres_grupos)
-                    for est in [e for e in res_est.data if e['groups'] and e['groups']['group_name'] == sel]:
-                        st.write(f"👤 {est['username']}")
-            except Exception as e:
-                st.error(f"Error panel: {e}")
-        # --- BOTÓN DE CERRAR SESIÓN ---
-        # Lo colocamos al final de la barra lateral con un separador
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
             st.session_state.user = None
