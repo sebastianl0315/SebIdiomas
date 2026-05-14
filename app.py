@@ -128,11 +128,37 @@ def guardar_progreso(user_id, exercise_id, calidad_respuesta):
         }).execute()
     except Exception as e:
         st.error(f"Error al guardar progreso: {e}")
+        
+def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+    
+    prompt = (
+        f"Eres un profesor de inglés colombiano. El estudiante está practicando '{tema}'. "
+        f"La pregunta era: '{pregunta}'. "
+        f"La respuesta correcta es: '{respuesta_correcta}'. "
+        f"El estudiante respondió: '{respuesta_usuario}'. "
+        f"Explica de forma breve, amable y en español de Colombia por qué la respuesta del estudiante es incorrecta "
+        f"y cuál es la regla gramatical que debe aplicar. Máximo 3 oraciones."
+    )
+
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+    except:
+        return "Lo siento, no pude conectar con el profe IA en este momento."
+    return "No pude generar la explicación."
 
 # --- 3. INTERFAZ PRINCIPAL ---
 
 def main():
-    st.set_page_config(page_title="SebIdiomas", page_icon="📖", layout="centered")
+    st.set_page_config(
+        page_title="SebIdiomas", 
+        page_icon="favicon.png", # Aquí pones el nombre de tu archivo
+        layout="centered"
+        )
     
     st.markdown("""
         <style>
@@ -212,25 +238,12 @@ def main():
                 res = signup_user(new_email, new_pass, new_user, group_id)
                 if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
     else:
-        st.sidebar.title("🚀 SebIdiomas")
+        st.sidebar.image("logo.png", use_container_width=True)      
+        st.sidebar.title("     SebIdiomas")
         opciones = ["Práctica Diaria", "Ranking de la Clase"]
         if st.session_state.user.email == "profesebastianloaiza@gmail.com":
             opciones.append("Panel de Administración")
         menu = st.sidebar.radio("Ir a:", opciones)
-
-        st.sidebar.divider()
-        try:
-            una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-            progreso_semana = supabase.table("user_progress").select("id").eq("user_id", st.session_state.user.id).gt("last_reviewed", una_semana_atras).execute()
-            completados = len(progreso_semana.data)
-            meta = 100
-            porcentaje = min(completados / meta, 1.0)
-            st.sidebar.write(f"📊 Meta Semanal: {completados}/{meta}")
-            st.sidebar.progress(porcentaje)
-            if porcentaje >= 1.0:
-                st.sidebar.success("¡Meta alcanzada! 🎯")
-        except:
-            pass
 
         if menu == "Ranking de la Clase":
             st.title("🏆 Hall of Fame")
@@ -250,9 +263,10 @@ def main():
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
             RUTA_GRADOS = {
-                "10-A 2026": ["Vocabulary A1", "Verb to be", "Present simple"],
-                "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple", "Present simple Third Person"],
-                "11-B 2026": ["Vocabulary A1", "Verb to be", "Present simple", "Presente continuous"]
+                "10-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
+                "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
+                "11-B 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
+                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple"],
             }
 
             try:
@@ -347,12 +361,53 @@ def main():
                         if st.session_state.es_correcto:
                             st.success("¡Excelente!")
                             if 'explanation' in contenido: st.caption(f"💡 {contenido['explanation']}")
-                        else:
+                        # --- Dentro del bloque 'else' de respuesta incorrecta ---
+                        else:                              
                             st.error(f"❌ La respuesta correcta era: {str(contenido['answer']).split('|')[0]}")
-                            if ex_id != "ia_gen":
-                                if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
-                                    # ... (tu lógica de reporte se mantiene igual)
-                                    pass
+    
+                            # Botón para pedir la explicación
+                            if st.button("🤔 ¿Por qué me equivoqué? Explícame", key=f"expl_{ex_id}"):
+                                # Usamos el 'item' que ya definiste arriba en la línea 268
+                                if item and 'content' in item:
+                                    with st.spinner("El profe está revisando tu respuesta..."):
+                                        # Extraemos los datos de manera segura
+                                        pregunta_texto = item['content'].get('question', 'la frase anterior')
+                                        respuesta_profe = str(item['content'].get('answer', '')).split('|')[0]
+                                        tema_ejercicio = item.get('topic', 'Inglés')
+
+                                        explicacion = explicar_error_ia(
+                                            pregunta_texto, 
+                                            respuesta_profe, 
+                                            resp_user,
+                                            tema_ejercicio
+                                        )
+                                        st.info(explicacion)
+                                else:
+                                    st.error("No se pudo recuperar la información del ejercicio para la IA.")
+                                      
+                                if ex_id != "ia_gen":
+                                    if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
+                                        try:
+                                            # Usamos el ID directamente del objeto de sesión
+                                            reporte = {
+                                            "user_id": st.session_state.user.id, 
+                                            "exercise_id": ex_id,
+                                            "user_answer": str(resp_user),
+                                            "expected_answer": str(contenido['answer']),
+                                            "status": "pending"
+                                            }
+        
+                                            # Ejecutar inserción
+                                            res = supabase.table("exercise_reports").insert(reporte).execute()
+                                            # Si no hubo excepción, procedemos
+                                            st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
+                                            st.rerun()
+                                        except Exception as e:
+                                            # Si falla, imprimimos el error completo para debuggear
+                                            st.error(f"Error al enviar: {e}")
+                                            #except Exception:
+                                            #st.warning("No se pudo enviar el reporte automáticamente, pero tu observación fue tomada en cuenta.")
+                                            pass
 
                         if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
                             if not st.session_state.es_correcto: 
@@ -365,7 +420,27 @@ def main():
 
             except Exception as e:
                 st.error(f"Error en práctica: {e}")
+            
+            # --- CÁLCULO DE META DINÁMICA ---
+            try:
+                # 1. Obtener la meta específica del grupo del usuario
+                user_data = supabase.table("profiles").select("groups(weekly_goal)").eq("id", st.session_state.user.id).single().execute()
+                meta_dinamica = user_data.data['groups']['weekly_goal'] if user_data.data['groups'] else 100
 
+                # 2. Contar ejercicios de la última semana
+                una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+                progreso_semana = supabase.table("user_progress").select("id").eq("user_id", st.session_state.user.id).gt("last_reviewed", una_semana_atras).execute()
+    
+                completados = len(progreso_semana.data)
+                porcentaje = min(completados / meta_dinamica, 1.0)
+    
+                st.sidebar.write(f"📊 Meta Semanal: {completados}/{meta_dinamica}")
+                st.sidebar.progress(porcentaje)
+                if porcentaje >= 1.0:
+                    st.sidebar.success("¡Meta alcanzada! 🎯")
+            except:
+                    pass
+                    
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
             st.subheader("🚩 Reportes de Errores")
@@ -399,8 +474,73 @@ def main():
                         st.write(f"👤 {est['username']}")
             except Exception as e:
                 st.error(f"Error panel: {e}")
+            
+            st.divider()
+            st.subheader("📈 Seguimiento de Metas")
+            
+            # 1. Selección de fechas y usuario
+            col1, col2 = st.columns(2)
+            fecha_inicio = col1.date_input("Desde", datetime.date.today() - datetime.timedelta(days=30))
+            fecha_fin = col2.date_input("Hasta", datetime.date.today())
+            
+            res_est_meta = supabase.table("profiles").select("id, username").execute()
+            if res_est_meta.data:
+                estudiantes = {e['username']: e['id'] for e in res_est_meta.data}
+                sel_estudiante = st.selectbox("Seleccionar Estudiante para auditar:", list(estudiantes.keys()))
+                user_id_auditar = estudiantes[sel_estudiante]
 
+                # 2. Consultar progreso en ese rango
+                res_auditoria = supabase.table("user_progress") \
+                    .select("last_reviewed") \
+                    .eq("user_id", user_id_auditar) \
+                    .gte("last_reviewed", fecha_inicio.isoformat()) \
+                    .lte("last_reviewed", fecha_fin.isoformat()) \
+                    .execute()
 
+                if res_auditoria.data:
+                    import pandas as pd
+                    
+                    df = pd.DataFrame(res_auditoria.data)
+                    df['last_reviewed'] = pd.to_datetime(df['last_reviewed'])
+                    
+                    # Agrupar por semana (empezando lunes 'W-MON')
+                    # Contamos cuántos ejercicios hizo por semana
+                    df_semanal = df.groupby(pd.Grouper(key='last_reviewed', freq='W-MON')).size().reset_index(name='conteo')
+                    
+                    # 3. Mostrar Resultados
+                    metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
+                    
+                    c1, c2 = st.columns(2)
+                    c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
+                    c2.metric("Total Ejercicios", f"{len(res_auditoria.data)}")
+                    
+                    # Visualización opcional para el docente
+                    with st.expander("Ver detalle por semanas"):
+                        df_semanal['Cumplió'] = df_semanal['conteo'].apply(lambda x: "✅" if x >= 100 else "❌")
+                        st.table(df_semanal.rename(columns={'last_reviewed': 'Semana del (Lunes)', 'conteo': 'Ejercicios'}))
+                else:
+                    st.info("No hay actividad registrada en este rango de fechas.")
+                st.divider()
+                st.subheader("🎯 Configurar Metas por Grupo")
+                try:
+                    # Traer los grupos actuales
+                    res_grupos = supabase.table("groups").select("id, group_name, weekly_goal").execute()
+                    if res_grupos.data:
+                        for grp in res_grupos.data:
+                            with st.expander(f"Meta de {grp['group_name']}"):
+                                nueva_meta = st.number_input(
+                                    f"Ejercicios semanales para {grp['group_name']}:", 
+                                    value=int(grp['weekly_goal']),
+                                    key=f"goal_{grp['id']}"
+                                )
+                                if st.button("Actualizar Meta", key=f"btn_goal_{grp['id']}"):
+                                    supabase.table("groups").update({"weekly_goal": nueva_meta}).eq("id", grp['id']).execute()
+                                    st.success("¡Meta actualizada!")
+                                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al cargar metas: {e}")                    
+        
+         #-------CERRAR SESIÓN------------------        
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
             st.session_state.user = None
