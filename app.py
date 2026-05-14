@@ -211,7 +211,29 @@ def main():
             background-color: #e63946 !important;
             height: 10px;
         }
+        /* --- ESTILO PARA OPCIONES DE SELECCIÓN MÚLTIPLE (RADIO) --- */
         
+        /* Color del texto de las opciones no seleccionadas */
+        div[data-testid="stMarkdownContainer"] p {
+            color: #1d3557 !important;
+        }
+
+        /* Forzar color en los labels de los radio buttons */
+        div[class*="st-"] label p {
+            color: #1d3557 !important;
+            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+        }
+
+        /* Espaciado entre opciones para que no queden pegadas en móvil */
+        div[data-testid="stWidgetLabel"] {
+            margin-bottom: 10px !important;
+        }
+
+        /* Ajuste para el círculo del radio (opcional, por si no se ve) */
+        div[data-baseweb="radio"] div {
+            text-shadow: none !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
