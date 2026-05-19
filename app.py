@@ -169,14 +169,14 @@ def actualizar_contrasena_usuario(nueva_contrasena):
         st.error(f"Error al cambiar la contraseña: {e}")
         return False
 
-# --- 3. INTERFAZ PRINCIPAL ---
 
+# --- 3. INTERFAZ PRINCIPAL ---
 def main():
     st.set_page_config(
         page_title="SebIdiomas", 
-        page_icon="favicon.png", # Aquí pones el nombre de tu archivo
+        page_icon="favicon.png", 
         layout="centered"
-        )
+    )
     
     st.markdown("""
         <style>
@@ -254,65 +254,66 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-
+ 
+    # Inicializar la variable de usuario de forma segura si no existe
     if "user" not in st.session_state:
         st.session_state.user = None
-        if st.session_state.user is None:
-        # --- CAPTURA DE TOKEN DE RECUPERACIÓN ---
-        # Supabase envía el token en la URL (como un fragmento o query param)
-            parametros = st.query_params
+
+    # --- FLUJO DE AUTENTICACIÓN / RECUPERACIÓN ---
+    if st.session_state.user is None:
+        parametros = st.query_params
         
-        # Si la URL contiene "type=recovery" o viene un token de acceso directo
-            es_recuperacion = parametros.get("type") == "recovery" or "access_token" in parametros
+        # Detectamos si viene el token de recuperación en la URL
+        es_recuperacion = parametros.get("type") == "recovery" or "access_token" in parametros
 
-            if es_recuperacion:
-                st.title("🔑 Restablecer tu Contraseña")
-                st.subheader("Ingresa tu nueva clave de acceso")
+        if es_recuperacion:
+            st.title("🔑 Restablecer tu Contraseña")
+            st.subheader("Ingresa tu nueva clave de acceso")
             
-                nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="恢复_pass")
-                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="恢复_conf")
+            nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="恢复_pass")
+            confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="恢复_conf")
             
-                if st.button("Guardar Cambios y Entrar", use_container_width=True):
-                    if len(nueva_clave) < 6:
-                        st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
-                    elif nueva_clave != confirmar_clave:
-                        st.error("⚠️ Las contraseñas no coinciden.")
-                    else:
-                        with st.spinner("Actualizando credenciales..."):
-                            if actualizar_contrasena_usuario(nueva_clave):
-                                st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
-                                # Limpiamos los parámetros de la URL para que no se quede en bucle
-                                st.query_params.clear()
-                                st.rerun()
+            if st.button("Guardar Cambios y Entrar", use_container_width=True):
+                if len(nueva_clave) < 6:
+                    st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
+                elif nueva_clave != confirmar_clave:
+                    st.error("⚠️ Las contraseñas no coinciden.")
+                else:
+                    with st.spinner("Actualizando credenciales..."):
+                        if actualizar_contrasena_usuario(nueva_clave):
+                            st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
+                            st.session_state.user = None
+                            st.query_params.clear()
+                            st.rerun()
             
-                if st.button("❌ Cancelar", use_container_width=True):
-                    st.query_params.clear()
-                    st.rerun()
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.query_params.clear()
+                st.rerun()
 
-            else:
-                # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
-                st.title("Bienvenido a SebIdiomas")
-                st.image("logo.png", use_container_width=True) 
-                tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
+        else:
+            # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
+            st.title("Bienvenido a SebIdiomas")
+            st.image("logo.png", width=300) 
+            tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
+        
+            with tab_login:
+                email = st.text_input("Correo electrónico")
+                password = st.text_input("Contraseña", type="password")
+                col_login, col_olvido = st.columns([1, 1])
             
-                with tab_login:
-                    email = st.text_input("Correo electrónico")
-                    password = st.text_input("Contraseña", type="password")
-                    col_login, col_olvido = st.columns([1, 1])
+                with col_login:
+                    if st.button("Entrar", use_container_width=True):
+                        res = login_user(email, password)
+                        if res:
+                            st.session_state.user = res.user
+                            st.rerun()
+            
+                with col_olvido:
+                    msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
+                    link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
                 
-                    with col_login:
-                        if st.button("Entrar", use_container_width=True):
-                            res = login_user(email, password)
-                            if res:
-                                st.session_state.user = res.user
-                                st.rerun()
-                
-                    with col_olvido:
-                        msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
-                        link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
-                    
-                        st.markdown(f"""
-                            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                    st.markdown(f"""
+                        <a href="{link_wa}" target="_blank" style="text-decoration: none;">
                             <button style="
                                 background-color: transparent;
                                 color: #1d3557;
@@ -326,20 +327,28 @@ def main():
                             </button>
                         </a>
                     """, unsafe_allow_html=True)
-                        
-                    with tab_signup:
-                        new_email = st.text_input("Nuevo Correo")
-                        new_pass = st.text_input("Nueva Contraseña", type="password")
-                        new_user = st.text_input("Nombre de Usuario")
-                        group_id = st.text_input("Código de Grupo")
-                        if st.button("Crear Cuenta", use_container_width=True):
-                            res = signup_user(new_email, new_pass, new_user, group_id)
-                            if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
+                    
+            with tab_signup:
+                new_email = st.text_input("Nuevo Correo")
+                new_pass = st.text_input("Nueva Contraseña", type="password")
+                new_user = st.text_input("Nombre de Usuario")
+                group_id = st.text_input("Código de Grupo")
+                if st.button("Crear Cuenta", use_container_width=True):
+                    res = signup_user(new_email, new_pass, new_user, group_id)
+                    if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
     
+    # --- FLUJO CON SESIÓN ACTIVA (USUARIO LOGUEADO) ---
     else:
+        # Control extra de protección por si la sesión está en una transición inestable
+        if st.session_state.user is None or not hasattr(st.session_state.user, 'id'):
+            st.session_state.user = None
+            st.query_params.clear()
+            st.rerun()
+
         st.sidebar.image("logo.png", use_container_width=True)      
-        st.sidebar.title("     SebIdiomas")
+        st.sidebar.title("      SebIdiomas")
         opciones = ["Práctica Diaria", "Ranking de la Clase"]
+        
         if st.session_state.user and hasattr(st.session_state.user, 'email'):
             if st.session_state.user.email == "profesebastianloaiza@gmail.com":
                 opciones.append("Panel de Administración")
@@ -398,7 +407,6 @@ def main():
                         if ex['id'] not in progreso_map:
                             pendientes.append(ex)
                         else:
-                            # Ajuste de formato de fecha para Python
                             fecha_repaso = datetime.datetime.fromisoformat(progreso_map[ex['id']].replace('Z', '+00:00'))
                             if ahora >= fecha_repaso:
                                 pendientes.append(ex)
@@ -407,7 +415,6 @@ def main():
                     if pendientes:
                         st.session_state.ejercicio_actual = random.choice(pendientes)
                     else:
-                        # Solo si no hay nada en Supabase, llamamos a la IA
                         tema_para_ia = random.choice(temas_permitidos)
                         with st.spinner(f"Generando práctica de {tema_para_ia}..."):
                             nuevo_ejercicio = generar_ejercicio_ia(tema_para_ia)
@@ -416,7 +423,6 @@ def main():
                             else:
                                 st.error("No hay ejercicios disponibles ni conexión con la IA.")
                     
-                    # Una sola recarga después de decidir qué ejercicio mostrar
                     st.session_state.respondido = False
                     st.session_state.es_correcto = False
                     st.rerun()
@@ -427,7 +433,6 @@ def main():
                     ex_id, tipo, contenido = item['id'], item['type'], item['content']
                     st.markdown(f"### Tema: {item.get('topic', 'General')}")
                     
-                                
                     if tipo == 'translate':
                         st.info(f"**Pregunta:** {contenido['question']}")
                         resp_user = st.text_input("Tu respuesta:", key=f"in_{ex_id}", disabled=st.session_state.respondido).lower().strip()
@@ -435,22 +440,15 @@ def main():
                         st.write(f"**Pregunta:** {contenido['question']}")
                         resp_user = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}", disabled=st.session_state.respondido)
                     elif tipo == 'scrambled':
-                        # Mostramos las palabras desordenadas en un formato llamativo
                         palabras = contenido['words']
-                        random.shuffle(palabras) # Las desordenamos por si acaso
+                        random.shuffle(palabras)
                         st.info("**Ordena la oración:**")
-                        st.subheader(f"🧩 {' / '.join(palabras)}") # Ejemplo: lives / in / She / El Paujil
+                        st.subheader(f"🧩 {' / '.join(palabras)}")
                         resp_user = st.text_input("Tu respuesta:", key=f"scr_{ex_id}_{st.session_state.input_counter}").strip()
-                        # El botón de verificar y la función validar_respuesta que ya tienes 
-                        # funcionarán perfecto porque al final es una comparación de texto.
 
                     if not st.session_state.respondido:
                         if st.button("Verificar", use_container_width=True):
-                            # --- 3. USO DE LA FUNCIÓN validar_respuesta ---
-                            # Esto es lo que permite ignorar el punto final
                             respuestas_correctas = str(contenido['answer']).split('|')
-                            
-                            # Comprobamos si coincide con alguna de las opciones válidas usando tu lógica
                             coincide = any(validar_respuesta(resp_user, r) for r in respuestas_correctas)
                             
                             st.session_state.es_correcto = coincide
@@ -462,16 +460,12 @@ def main():
                         if st.session_state.es_correcto:
                             st.success("¡Excelente!")
                             if 'explanation' in contenido: st.caption(f"💡 {contenido['explanation']}")
-                        # --- Dentro del bloque 'else' de respuesta incorrecta ---
-                        else:                              
+                        else:              
                             st.error(f"❌ La respuesta correcta era: {str(contenido['answer']).split('|')[0]}")
     
-                            # Botón para pedir la explicación
                             if st.button("🤔 ¿Por qué me equivoqué? Explícame", key=f"expl_{ex_id}"):
-                                # Usamos el 'item' que ya definiste arriba en la línea 268
                                 if item and 'content' in item:
                                     with st.spinner("El profe está revisando tu respuesta..."):
-                                        # Extraemos los datos de manera segura
                                         pregunta_texto = item['content'].get('question', 'la frase anterior')
                                         respuesta_profe = str(item['content'].get('answer', '')).split('|')[0]
                                         tema_ejercicio = item.get('topic', 'Inglés')
@@ -489,34 +483,26 @@ def main():
                                 if ex_id != "ia_gen":
                                     if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
                                         try:
-                                            # Usamos el ID directamente del objeto de sesión
                                             reporte = {
-                                            "user_id": st.session_state.user.id, 
-                                            "exercise_id": ex_id,
-                                            "user_answer": str(resp_user),
-                                            "expected_answer": str(contenido['answer']),
-                                            "status": "pending"
+                                                "user_id": st.session_state.user.id, 
+                                                "exercise_id": ex_id,
+                                                "user_answer": str(resp_user),
+                                                "expected_answer": str(contenido['answer']),
+                                                "status": "pending"
                                             }
-        
-                                            # Ejecutar inserción
-                                            res = supabase.table("exercise_reports").insert(reporte).execute()
-                                            # Si no hubo excepción, procedemos
+                                            supabase.table("exercise_reports").insert(reporte).execute()
                                             st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
                                             st.rerun()
                                         except Exception as e:
-                                            # Si falla, imprimimos el error completo para debuggear
                                             st.error(f"Error al enviar: {e}")
-                                            #except Exception:
-                                            #st.warning("No se pudo enviar el reporte automáticamente, pero tu observación fue tomada en cuenta.")
                                             pass
 
                         if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
                             if not st.session_state.es_correcto: 
                                 guardar_progreso(st.session_state.user.id, ex_id, 0)
                             
-                            # --- 4. RESETEO Y AUMENTO DEL CONTADOR ---
                             st.session_state.ejercicio_actual = None
-                            st.session_state.input_counter += 1 # Esto limpia el campo para la próxima
+                            st.session_state.input_counter += 1
                             st.rerun()
 
             except Exception as e:
@@ -524,11 +510,9 @@ def main():
             
             # --- CÁLCULO DE META DINÁMICA ---
             try:
-                # 1. Obtener la meta específica del grupo del usuario
                 user_data = supabase.table("profiles").select("groups(weekly_goal)").eq("id", st.session_state.user.id).single().execute()
                 meta_dinamica = user_data.data['groups']['weekly_goal'] if user_data.data['groups'] else 100
 
-                # 2. Contar ejercicios de la última semana
                 una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
                 progreso_semana = supabase.table("user_progress").select("id").eq("user_id", st.session_state.user.id).gt("last_reviewed", una_semana_atras).execute()
     
@@ -540,7 +524,7 @@ def main():
                 if porcentaje >= 1.0:
                     st.sidebar.success("¡Meta alcanzada! 🎯")
             except:
-                    pass
+                pass
                     
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
@@ -579,7 +563,6 @@ def main():
             st.divider()
             st.subheader("📈 Seguimiento de Metas")
             
-            # 1. Selección de fechas y usuario
             col1, col2 = st.columns(2)
             fecha_inicio = col1.date_input("Desde", datetime.date.today() - datetime.timedelta(days=30))
             fecha_fin = col2.date_input("Hasta", datetime.date.today())
@@ -590,7 +573,6 @@ def main():
                 sel_estudiante = st.selectbox("Seleccionar Estudiante para auditar:", list(estudiantes.keys()))
                 user_id_auditar = estudiantes[sel_estudiante]
 
-                # 2. Consultar progreso en ese rango
                 res_auditoria = supabase.table("user_progress") \
                     .select("last_reviewed") \
                     .eq("user_id", user_id_auditar) \
@@ -604,54 +586,19 @@ def main():
                     df = pd.DataFrame(res_auditoria.data)
                     df['last_reviewed'] = pd.to_datetime(df['last_reviewed'])
                     
-                    # Agrupar por semana (empezando lunes 'W-MON')
-                    # Contamos cuántos ejercicios hizo por semana
                     df_semanal = df.groupby(pd.Grouper(key='last_reviewed', freq='W-MON')).size().reset_index(name='conteo')
                     
-                    # 3. Mostrar Resultados
                     metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
                     
                     c1, c2 = st.columns(2)
                     c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
                     c2.metric("Total Ejercicios", f"{len(res_auditoria.data)}")
                     
-                    # Visualización opcional para el docente
                     with st.expander("Ver detalle por semanas"):
                         df_semanal['Cumplió'] = df_semanal['conteo'].apply(lambda x: "✅" if x >= 100 else "❌")
                         st.table(df_semanal.rename(columns={'last_reviewed': 'Semana del (Lunes)', 'conteo': 'Ejercicios'}))
                 else:
                     st.info("No hay actividad registrada en este rango de fechas.")
-                st.divider()
-                st.subheader("🎯 Configurar Metas por Grupo")
-                try:
-                    # Traer los grupos actuales
-                    res_grupos = supabase.table("groups").select("id, group_name, weekly_goal").execute()
-                    if res_grupos.data:
-                        for grp in res_grupos.data:
-                            with st.expander(f"Meta de {grp['group_name']}"):
-                                nueva_meta = st.number_input(
-                                    f"Ejercicios semanales para {grp['group_name']}:", 
-                                    value=int(grp['weekly_goal']),
-                                    key=f"goal_{grp['id']}"
-                                )
-                                if st.button("Actualizar Meta", key=f"btn_goal_{grp['id']}"):
-                                    supabase.table("groups").update({"weekly_goal": nueva_meta}).eq("id", grp['id']).execute()
-                                    st.success("¡Meta actualizada!")
-                                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al cargar metas: {e}")    
-                    
-                st.subheader("🔑 Gestión de Usuarios")
-                user_a_resetear = st.text_input("Correo del alumno que olvidó la clave:")
-                if st.button("Enviar correo de recuperación"):
-                    if reset_password_admin(user_a_resetear):
-                        st.success("Correo de recuperación enviado con éxito.")
-        
-         #-------CERRAR SESIÓN------------------        
-        st.sidebar.divider()
-        if st.sidebar.button("Cerrar Sesión", use_container_width=True):
-            st.session_state.user = None
-            st.rerun()
 
 if __name__ == "__main__":
     main()
