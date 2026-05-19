@@ -159,6 +159,15 @@ def reset_password_admin(email):
     except Exception as e:
         st.error(f"Error: {e}")
         return False
+    
+def actualizar_contrasena_usuario(nueva_contrasena):
+    try:
+        # Esto actualiza los datos del usuario que tiene la sesión activa mediante el token
+        supabase.auth.update_user({"password": nueva_contrasena})
+        return True
+    except Exception as e:
+        st.error(f"Error al cambiar la contraseña: {e}")
+        return False
 
 # --- 3. INTERFAZ PRINCIPAL ---
 
@@ -248,53 +257,84 @@ def main():
 
     if "user" not in st.session_state:
         st.session_state.user = None
+        if st.session_state.user is None:
+        # --- CAPTURA DE TOKEN DE RECUPERACIÓN ---
+        # Supabase envía el token en la URL (como un fragmento o query param)
+            parametros = st.query_params
+        
+        # Si la URL contiene "type=recovery" o viene un token de acceso directo
+            es_recuperacion = parametros.get("type") == "recovery" or "access_token" in parametros
 
-    if st.session_state.user is None:
-        st.title("Bienvenido a SebIdiomas")
-        tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
-        with tab_login:
-            email = st.text_input("Correo electrónico")
-            password = st.text_input("Contraseña", type="password")
-            col_login, col_olvido = st.columns([1, 1])
+            if es_recuperacion:
+                st.title("🔑 Restablecer tu Contraseña")
+                st.subheader("Ingresa tu nueva clave de acceso")
             
-            with col_login:
-                if st.button("Entrar", use_container_width=True):
-                    res = login_user(email, password)
-                    if res:
-                        st.session_state.user = res.user
-                        st.rerun()
+                nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="恢复_pass")
+                confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="恢复_conf")
             
-            with col_olvido:
-                # Reemplaza el número con tu WhatsApp profesional
-                # El mensaje ya sale pre-escrito para el alumno
-                msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
-                link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
+                if st.button("Guardar Cambios y Entrar", use_container_width=True):
+                    if len(nueva_clave) < 6:
+                        st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
+                    elif nueva_clave != confirmar_clave:
+                        st.error("⚠️ Las contraseñas no coinciden.")
+                    else:
+                        with st.spinner("Actualizando credenciales..."):
+                            if actualizar_contrasena_usuario(nueva_clave):
+                                st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
+                                # Limpiamos los parámetros de la URL para que no se quede en bucle
+                                st.query_params.clear()
+                                st.rerun()
+            
+                if st.button("❌ Cancelar", use_container_width=True):
+                    st.query_params.clear()
+                    st.rerun()
+
+            else:
+                # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
+                st.title("Bienvenido a SebIdiomas")
+                tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
+            
+                with tab_login:
+                    email = st.text_input("Correo electrónico")
+                    password = st.text_input("Contraseña", type="password")
+                    col_login, col_olvido = st.columns([1, 1])
                 
-                st.markdown(f"""
-                    <a href="{link_wa}" target="_blank" style="text-decoration: none;">
-                        <button style="
-                            background-color: transparent;
-                            color: #1d3557;
-                            border: 1px solid #1d3557;
-                            border-radius: 10px;
-                            width: 100%;
-                            height: 3em;
-                            cursor: pointer;
-                            font-weight: bold;">
-                            ¿Olvidaste tu contraseña?
-                        </button>
-                    </a>
-                """, unsafe_allow_html=True)
+                    with col_login:
+                        if st.button("Entrar", use_container_width=True):
+                            res = login_user(email, password)
+                            if res:
+                                st.session_state.user = res.user
+                                st.rerun()
+                
+                    with col_olvido:
+                        msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
+                        link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
                     
-                    
-        with tab_signup:
-            new_email = st.text_input("Nuevo Correo")
-            new_pass = st.text_input("Nueva Contraseña", type="password")
-            new_user = st.text_input("Nombre de Usuario")
-            group_id = st.text_input("Código de Grupo")
-            if st.button("Crear Cuenta", use_container_width=True):
-                res = signup_user(new_email, new_pass, new_user, group_id)
-                if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
+                        st.markdown(f"""
+                            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                            <button style="
+                                background-color: transparent;
+                                color: #1d3557;
+                                border: 1px solid #1d3557;
+                                border-radius: 10px;
+                                width: 100%;
+                                height: 3em;
+                                cursor: pointer;
+                                font-weight: bold;">
+                                ¿Olvidaste tu contraseña?
+                            </button>
+                        </a>
+                    """, unsafe_allow_html=True)
+                        
+                    with tab_signup:
+                        new_email = st.text_input("Nuevo Correo")
+                        new_pass = st.text_input("Nueva Contraseña", type="password")
+                        new_user = st.text_input("Nombre de Usuario")
+                        group_id = st.text_input("Código de Grupo")
+                        if st.button("Crear Cuenta", use_container_width=True):
+                            res = signup_user(new_email, new_pass, new_user, group_id)
+                            if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
+    
     else:
         st.sidebar.image("logo.png", use_container_width=True)      
         st.sidebar.title("     SebIdiomas")
