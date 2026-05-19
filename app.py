@@ -176,7 +176,7 @@ def main():
         page_icon="favicon.png", 
         layout="centered"
     )
-    
+    url_publica_favicon = "https://raw.githubusercontent.com/sebastianl0315/SebIdiomas/main/favicon.png"
     st.markdown("""
         <style>
         /* Fondo general de la app */
@@ -252,6 +252,12 @@ def main():
             text-shadow: none !important;
         }
         </style>
+        
+        <link rel="apple-touch-icon" sizes="180x180" href="{url_publica_favicon}">
+        <link rel="apple-touch-icon" href="{url_publica_favicon}">
+        
+        <link rel="icon" type="image/png" sizes="192x192" href="{url_publica_favicon}">
+        <link rel="icon" type="image/png" sizes="512x512" href="{url_publica_favicon}">
     """, unsafe_allow_html=True)
  
    # --- NUEVA LÓGICA DE DETECCIÓN DE HASH PARA SUPABASE ---
