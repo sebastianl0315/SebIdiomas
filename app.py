@@ -322,41 +322,60 @@ def main():
 
         else:
             # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
-            st.title("Bienvenido a SebIdiomas")
-            st.image("logo.png", width=300) 
+            # --- Encabezado con Logo y Título en paralelo ---
+            col_logo, col_titulo = st.columns([1, 3], vertical_alignment="center")
+            
+            with col_logo:
+                # Ajustamos el ancho (puedes bajarlo a 80 o 100 si lo quieres más discreto)
+                st.image("logo.png", width=120) 
+                
+            with col_titulo:
+                # Usamos markdown con un formato grande para que no meta tanto espacio vacío como st.title
+                st.markdown("<h1 style='margin: 0; padding: 0;'>Bienvenido a SebIdiomas</h1>", unsafe_allow_html=True)
+            
+            # Un pequeño espacio de separación antes de las pestañas
+            st.write("")
             tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
         
             with tab_login:
                 email = st.text_input("Correo electrónico")
                 password = st.text_input("Contraseña", type="password")
-                col_login, col_olvido = st.columns([1, 1])
-            
+                # Forzamos a que todo lo que vaya dentro de estas columnas se alinee verticalmente al centro
+                col_login, col_olvido = st.columns([1, 1], vertical_alignment="center")
+        
                 with col_login:
                     if st.button("Entrar", use_container_width=True):
                         res = login_user(email, password)
                         if res:
                             st.session_state.user = res.user
                             st.rerun()
-            
+        
                 with col_olvido:
                     msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
                     link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
-                
+            
+                    # Un diseño limpio que se acopla perfectamente a la altura del st.button
                     st.markdown(f"""
-                        <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                        <a href="{link_wa}" target="_blank" style="text-decoration: none; display: block; width: 100%;">
                             <button style="
-                                background-color: transparent;
-                                color: #1d3557;
-                                border: 1px solid #1d3557;
-                                border-radius: 10px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
                                 width: 100%;
-                                height: 3em;
+                                padding: 10px 12px;
+                                font-family: inherit;
+                                font-size: 14px;
+                                font-weight: 500;
+                                color: #31333f;
+                                background-color: #ffffff;
+                                border: 1px solid rgba(49, 51, 63, 0.2);
+                                border-radius: 8px;
                                 cursor: pointer;
-                                font-weight: bold;">
+                                transition: all 0.2s ease;">
                                 ¿Olvidaste tu contraseña?
                             </button>
                         </a>
-                    """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)                    
                     
             with tab_signup:
                 new_email = st.text_input("Nuevo Correo")
@@ -629,6 +648,19 @@ def main():
                         st.table(df_semanal.rename(columns={'last_reviewed': 'Semana del (Lunes)', 'conteo': 'Ejercicios'}))
                 else:
                     st.info("No hay actividad registrada en este rango de fechas.")
-
+                    
+            st.divider()        
+            st.subheader("🔑 Gestión de Usuarios")
+            user_a_resetear = st.text_input("Correo del alumno que olvidó la clave:")
+            if st.button("Enviar correo de recuperación"):
+                 if reset_password_admin(user_a_resetear):
+                        st.success("Correo de recuperación enviado con éxito.")
+                        
+         #-------CERRAR SESIÓN------------------        
+        st.sidebar.divider()
+        if st.sidebar.button("Cerrar Sesión", use_container_width=True):
+            st.session_state.user = None
+            st.rerun()
 if __name__ == "__main__":
+    main()
     main()
