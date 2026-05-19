@@ -260,13 +260,21 @@ def main():
         st.session_state.user = None
 
     # --- FLUJO DE AUTENTICACIÓN / RECUPERACIÓN ---
-    if st.session_state.user is None:
-        parametros = st.query_params
-        
-        # Detectamos si viene el token de recuperación en la URL
-        es_recuperacion = parametros.get("type") == "recovery" or "access_token" in parametros
+    # Inicializar variables de estado de forma segura si no existen
+    if "user" not in st.session_state:
+        st.session_state.user = None
+    if "recovery_mode" not in st.session_state:
+        st.session_state.recovery_mode = False
 
-        if es_recuperacion:
+    # 1. CAPTURA INMEDIATA DEL TOKEN (Antes de que se limpie la URL)
+    parametros = st.query_params
+    if parametros.get("type") == "recovery" or "access_token" in parametros:
+        st.session_state.recovery_mode = True
+
+    # --- FLUJO DE AUTENTICACIÓN / RECUPERACIÓN ---
+    if st.session_state.user is None:
+        
+        if st.session_state.recovery_mode:
             st.title("🔑 Restablecer tu Contraseña")
             st.subheader("Ingresa tu nueva clave de acceso")
             
@@ -282,11 +290,14 @@ def main():
                     with st.spinner("Actualizando credenciales..."):
                         if actualizar_contrasena_usuario(nueva_clave):
                             st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
+                            # Limpiamos todo para regresar al Login limpio
+                            st.session_state.recovery_mode = False
                             st.session_state.user = None
                             st.query_params.clear()
                             st.rerun()
             
             if st.button("❌ Cancelar", use_container_width=True):
+                st.session_state.recovery_mode = False
                 st.query_params.clear()
                 st.rerun()
 
