@@ -162,13 +162,12 @@ def reset_password_admin(email):
     
 def actualizar_contrasena_usuario(nueva_contrasena):
     try:
-        # Esto actualiza los datos del usuario que tiene la sesión activa mediante el token
+        # Forzamos la actualización sobre la sesión actual que Supabase recuperó
         supabase.auth.update_user({"password": nueva_contrasena})
         return True
     except Exception as e:
         st.error(f"Error al cambiar la contraseña: {e}")
         return False
-
 
 # --- 3. INTERFAZ PRINCIPAL ---
 def main():
@@ -255,18 +254,28 @@ def main():
         </style>
     """, unsafe_allow_html=True)
  
-    # Inicializar la variable de usuario de forma segura si no existe
-    if "user" not in st.session_state:
-        st.session_state.user = None
-
-    # --- FLUJO DE AUTENTICACIÓN / RECUPERACIÓN ---
-    # Inicializar variables de estado de forma segura si no existen
+   # --- NUEVA LÓGICA DE DETECCIÓN DE HASH PARA SUPABASE ---
+    # Inicializar estados si no existen
     if "user" not in st.session_state:
         st.session_state.user = None
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
 
-    # 1. CAPTURA INMEDIATA DEL TOKEN (Antes de que se limpie la URL)
+    # TRUCO: Supabase lee automáticamente el '#' de la URL al inicializarse o procesar la sesión externa.
+    # Pero en Streamlit, si la URL trae un access_token (venga en query o se intuya en el hash), activamos el modo.
+    try:
+        # Intentamos ver si Supabase ya pescó la sesión del hash de la URL
+        sesion_actual = supabase.auth.get_session()
+        if sesion_actual and sesion_actual.user:
+            # Si hay un usuario en la sesión temporal pero no está en session_state,
+            # y la URL sugiere recuperación, es porque viene del correo.
+            parametros = st.query_params
+            if parametros.get("type") == "recovery" or "type=recovery" in st.context.headers.get("Referer", ""):
+                st.session_state.recovery_mode = True
+    except:
+        pass
+
+    # Por si las moscas el token entró por query param directo:
     parametros = st.query_params
     if parametros.get("type") == "recovery" or "access_token" in parametros:
         st.session_state.recovery_mode = True
@@ -278,8 +287,9 @@ def main():
             st.title("🔑 Restablecer tu Contraseña")
             st.subheader("Ingresa tu nueva clave de acceso")
             
-            nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="恢复_pass")
-            confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="恢复_conf")
+            # Cambiamos las llaves (keys) para evitar conflictos con ejecuciones previas
+            nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="new_password_field")
+            confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="confirm_password_field")
             
             if st.button("Guardar Cambios y Entrar", use_container_width=True):
                 if len(nueva_clave) < 6:
@@ -287,17 +297,26 @@ def main():
                 elif nueva_clave != confirmar_clave:
                     st.error("⚠️ Las contraseñas no coinciden.")
                 else:
-                    with st.spinner("Actualizando credenciales..."):
+                    with st.spinner("Actualizando credenciales en Supabase..."):
                         if actualizar_contrasena_usuario(nueva_clave):
                             st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
-                            # Limpiamos todo para regresar al Login limpio
+                            # Limpieza absoluta para forzar login limpio
                             st.session_state.recovery_mode = False
                             st.session_state.user = None
+                            # Cerramos sesión global por si quedó la sesión temporal atascada
+                            try:
+                                supabase.auth.sign_out()
+                            except:
+                                pass
                             st.query_params.clear()
                             st.rerun()
             
             if st.button("❌ Cancelar", use_container_width=True):
                 st.session_state.recovery_mode = False
+                try:
+                    supabase.auth.sign_out()
+                except:
+                    pass
                 st.query_params.clear()
                 st.rerun()
 
