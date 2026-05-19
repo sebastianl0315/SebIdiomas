@@ -292,6 +292,7 @@ def main():
             else:
                 # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
                 st.title("Bienvenido a SebIdiomas")
+                st.image("logo.png", use_container_width=True) 
                 tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
             
                 with tab_login:
@@ -339,8 +340,10 @@ def main():
         st.sidebar.image("logo.png", use_container_width=True)      
         st.sidebar.title("     SebIdiomas")
         opciones = ["Práctica Diaria", "Ranking de la Clase"]
-        if st.session_state.user.email == "profesebastianloaiza@gmail.com":
-            opciones.append("Panel de Administración")
+        if st.session_state.user and hasattr(st.session_state.user, 'email'):
+            if st.session_state.user.email == "profesebastianloaiza@gmail.com":
+                opciones.append("Panel de Administración")
+                
         menu = st.sidebar.radio("Ir a:", opciones)
 
         if menu == "Ranking de la Clase":
