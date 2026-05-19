@@ -151,6 +151,15 @@ def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
         return "Lo siento, no pude conectar con el profe IA en este momento."
     return "No pude generar la explicación."
 
+def reset_password_admin(email):
+    try:
+        # Supabase enviará un correo de recuperación al usuario
+        supabase.auth.reset_password_for_email(email)
+        return True
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return False
+
 # --- 3. INTERFAZ PRINCIPAL ---
 
 def main():
@@ -246,11 +255,38 @@ def main():
         with tab_login:
             email = st.text_input("Correo electrónico")
             password = st.text_input("Contraseña", type="password")
-            if st.button("Entrar", use_container_width=True):
-                res = login_user(email, password)
-                if res:
-                    st.session_state.user = res.user
-                    st.rerun()
+            col_login, col_olvido = st.columns([1, 1])
+            
+            with col_login:
+                if st.button("Entrar", use_container_width=True):
+                    res = login_user(email, password)
+                    if res:
+                        st.session_state.user = res.user
+                        st.rerun()
+            
+            with col_olvido:
+                # Reemplaza el número con tu WhatsApp profesional
+                # El mensaje ya sale pre-escrito para el alumno
+                msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
+                link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
+                
+                st.markdown(f"""
+                    <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                        <button style="
+                            background-color: transparent;
+                            color: #1d3557;
+                            border: 1px solid #1d3557;
+                            border-radius: 10px;
+                            width: 100%;
+                            height: 3em;
+                            cursor: pointer;
+                            font-weight: bold;">
+                            ¿Olvidaste tu contraseña?
+                        </button>
+                    </a>
+                """, unsafe_allow_html=True)
+                    
+                    
         with tab_signup:
             new_email = st.text_input("Nuevo Correo")
             new_pass = st.text_input("Nueva Contraseña", type="password")
@@ -560,7 +596,13 @@ def main():
                                     st.success("¡Meta actualizada!")
                                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al cargar metas: {e}")                    
+                    st.error(f"Error al cargar metas: {e}")    
+                    
+                st.subheader("🔑 Gestión de Usuarios")
+                user_a_resetear = st.text_input("Correo del alumno que olvidó la clave:")
+                if st.button("Enviar correo de recuperación"):
+                    if reset_password_admin(user_a_resetear):
+                        st.success("Correo de recuperación enviado con éxito.")
         
          #-------CERRAR SESIÓN------------------        
         st.sidebar.divider()
