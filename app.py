@@ -12,25 +12,16 @@ key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
 
-
 # --- 2. FUNCIONES DE APOYO ---
 def validar_respuesta(intento, correcta):
-    # .strip() quita espacios al inicio/final
-    # .lower() convierte a minúsculas
-    # .rstrip('.') quita el punto final si existe
     intento_limpio = intento.strip().lower().rstrip('.')
     correcta_limpia = correcta.strip().lower().rstrip('.')
-    
-    # Comparación directa de las versiones limpias
     return intento_limpio == correcta_limpia
 
 def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
     api_key = st.secrets["GOOGLE_API_KEY"]
-    
-    # Usamos el alias que nos funcionó
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
     
-    # Instrucciones específicas para el contexto colombiano
     system_instruction = (
         "Eres un profesor de inglés en Colombia. "
         "Usa español de Colombia (ej: 'carro' en vez de 'coche', 'computador' en vez de 'ordenador'). "
@@ -56,17 +47,13 @@ def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
         """
 
     prompt = f"{system_instruction} Crea un ejercicio de tipo '{tipo_ejercicio}' sobre '{tema}'. Responde ÚNICAMENTE con este formato JSON: {formato_json}"
-
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
     try:
         response = requests.post(url, json=payload, timeout=15)
         if response.status_code == 200:
             res_json = response.json()
             texto = res_json['candidates'][0]['content']['parts'][0]['text']
-            # Limpiamos el texto de posibles marcas de markdown
             data = json.loads(texto.replace('```json', '').replace('```', '').strip())
             
             return {
@@ -102,7 +89,6 @@ def signup_user(email, password, username, group_code):
         return None
 
 def guardar_progreso(user_id, exercise_id, calidad_respuesta):
-    # Si es un ejercicio de IA, no intentamos guardar progreso por ahora o usamos un ID especial
     if exercise_id == "ia_gen":
         return 
         
@@ -138,8 +124,8 @@ def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
         f"La pregunta era: '{pregunta}'. "
         f"La respuesta correcta es: '{respuesta_correcta}'. "
         f"El estudiante respondió: '{respuesta_usuario}'. "
-        f"Explica de forma breve, amable y en español de Colombia por qué la respuesta del estudiante es incorrecta "
-        f"y cuál es la regla gramatical que debe aplicar. Máximo 3 oraciones."
+        "Explica de forma breve, amable y en español de Colombia por qué la respuesta del estudiante es incorrecta "
+        "y cuál es la regla gramatical que debe aplicar. Máximo 3 oraciones."
     )
 
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -153,7 +139,6 @@ def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
 
 def reset_password_admin(email):
     try:
-        # Supabase enviará un correo de recuperación al usuario
         supabase.auth.reset_password_for_email(email)
         return True
     except Exception as e:
@@ -162,7 +147,6 @@ def reset_password_admin(email):
     
 def actualizar_contrasena_usuario(nueva_contrasena):
     try:
-        # Forzamos la actualización sobre la sesión actual que Supabase recuperó
         supabase.auth.update_user({"password": nueva_contrasena})
         return True
     except Exception as e:
@@ -171,8 +155,7 @@ def actualizar_contrasena_usuario(nueva_contrasena):
 
 def eliminar_estudiante_db(user_id):
     try:
-        # Reemplaza 'usuarios' por el nombre exacto de tu tabla de estudiantes
-        supabase.table("usuarios").delete().eq("id", user_id).execute()
+        supabase.table("profiles").delete().eq("id", user_id).execute()
         return True
     except Exception as e:
         st.error(f"Error al eliminar en la base de datos: {e}")
@@ -185,38 +168,26 @@ def main():
         page_icon="favicon.png", 
         layout="centered"
     )
-    url_publica_favicon = "https://raw.githubusercontent.com/sebastianl0315/SebIdiomas/main/favicon.png"
+    
+    # CSS Sanado y protegido para evitar pantallas blancas por colapso de renderizado
     st.markdown("""
         <style>
-        /* Fondo general de la app */
         .stApp { background-color: #f8f9fa !important; }
         
-        /* Forzar visibilidad de Títulos y Subtítulos en móviles */
-        h1, h2, h3, span[data-baseweb="typewriter"] {
+        /* Estilos específicos para textos sin romper el árbol del DOM */
+        .main-title {
             color: #1d3557 !important;
-            opacity: 1 !important;
-            display: block !important;
-        }
-
-        /* Ajuste de márgenes en móviles para que no se esconda el contenido */
-        .block-container {
-            padding-top: 2rem !important;
-            padding-bottom: 2rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
+            font-size: 2.2rem;
+            font-weight: bold;
+            margin: 0;
+            padding: 0;
         }
         
-        /* Texto principal */
-        .stMarkdown p, .stText, label, .stWidgetLabel p { 
-            color: #1d3557 !important; 
-            font-weight: 500 !important; 
-        }
-        
-        /* --- BARRA LATERAL --- */
+        /* Contenedor lateral */
         [data-testid="stSidebar"] { background-color: #1d3557 !important; }
         [data-testid="stSidebar"] * { color: white !important; }
         
-        /* Botones grandes para dedos (touch friendly) */
+        /* Botones optimizados para Touch */
         div.stButton > button {
             background-color: #e63946 !important;
             color: white !important;
@@ -224,85 +195,45 @@ def main():
             height: 3em !important;
             width: 100% !important;
             margin-top: 10px !important;
+            border: none !important;
         }
-        /* Forzar visibilidad del texto de la meta semanal en el sidebar */
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-            color: #ffffff !important;
-            font-size: 1.1rem !important;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        
+        div.stButton > button:hover {
+            background-color: #d62839 !important;
+            color: white !important;
         }
-
-        /* Hacer la barra de progreso más alta para que sea fácil de ver en touch */
+        
+        /* Barra de progreso de la barra lateral */
         [data-testid="stSidebar"] .stProgress > div > div > div > div {
             background-color: #e63946 !important;
             height: 10px;
         }
-        /* --- ESTILO PARA OPCIONES DE SELECCIÓN MÚLTIPLE (RADIO) --- */
-        
-        /* Color del texto de las opciones no seleccionadas */
-        div[data-testid="stMarkdownContainer"] p {
-            color: #1d3557 !important;
-        }
-
-        /* Forzar color en los labels de los radio buttons */
-        div[class*="st-"] label p {
-            color: #1d3557 !important;
-            font-size: 1.1rem !important;
-            font-weight: 600 !important;
-        }
-
-        /* Espaciado entre opciones para que no queden pegadas en móvil */
-        div[data-testid="stWidgetLabel"] {
-            margin-bottom: 10px !important;
-        }
-
-        /* Ajuste para el círculo del radio (opcional, por si no se ve) */
-        div[data-baseweb="radio"] div {
-            text-shadow: none !important;
-        }
         </style>
-        
-        <link rel="apple-touch-icon" sizes="180x180" href="{url_publica_favicon}">
-        <link rel="apple-touch-icon" href="{url_publica_favicon}">
-        
-        <link rel="icon" type="image/png" sizes="192x192" href="{url_publica_favicon}">
-        <link rel="icon" type="image/png" sizes="512x512" href="{url_publica_favicon}">
     """, unsafe_allow_html=True)
  
-   # --- NUEVA LÓGICA DE DETECCIÓN DE HASH PARA SUPABASE ---
-    # Inicializar estados si no existen
     if "user" not in st.session_state:
         st.session_state.user = None
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
 
-    # TRUCO: Supabase lee automáticamente el '#' de la URL al inicializarse o procesar la sesión externa.
-    # Pero en Streamlit, si la URL trae un access_token (venga en query o se intuya en el hash), activamos el modo.
     try:
-        # Intentamos ver si Supabase ya pescó la sesión del hash de la URL
         sesion_actual = supabase.auth.get_session()
         if sesion_actual and sesion_actual.user:
-            # Si hay un usuario en la sesión temporal pero no está en session_state,
-            # y la URL sugiere recuperación, es porque viene del correo.
             parametros = st.query_params
             if parametros.get("type") == "recovery" or "type=recovery" in st.context.headers.get("Referer", ""):
                 st.session_state.recovery_mode = True
     except:
         pass
 
-    # Por si las moscas el token entró por query param directo:
     parametros = st.query_params
     if parametros.get("type") == "recovery" or "access_token" in parametros:
         st.session_state.recovery_mode = True
 
-    # --- FLUJO DE AUTENTICACIÓN / RECUPERACIÓN ---
     if st.session_state.user is None:
-        
         if st.session_state.recovery_mode:
             st.title("🔑 Restablecer tu Contraseña")
             st.subheader("Ingresa tu nueva clave de acceso")
             
-            # Cambiamos las llaves (keys) para evitar conflictos con ejecuciones previas
             nueva_clave = st.text_input("Nueva Contraseña:", type="password", key="new_password_field")
             confirmar_clave = st.text_input("Confirmar Nueva Contraseña:", type="password", key="confirm_password_field")
             
@@ -315,10 +246,8 @@ def main():
                     with st.spinner("Actualizando credenciales en Supabase..."):
                         if actualizar_contrasena_usuario(nueva_clave):
                             st.success("¡Contraseña actualizada con éxito! Ya puedes ingresar.")
-                            # Limpieza absoluta para forzar login limpio
                             st.session_state.recovery_mode = False
                             st.session_state.user = None
-                            # Cerramos sesión global por si quedó la sesión temporal atascada
                             try:
                                 supabase.auth.sign_out()
                             except:
@@ -336,26 +265,21 @@ def main():
                 st.rerun()
 
         else:
-            # --- FLUJO NORMAL DE LOGIN / SIGNUP ---
-            # --- Encabezado con Logo y Título en paralelo ---
             col_logo, col_titulo = st.columns([1, 3], vertical_alignment="center")
-            
             with col_logo:
-                # Ajustamos el ancho (puedes bajarlo a 80 o 100 si lo quieres más discreto)
-                st.image("logo.png", width=120) 
-                
+                try:
+                    st.image("logo.png", width=120)
+                except:
+                    pass
             with col_titulo:
-                # Usamos markdown con un formato grande para que no meta tanto espacio vacío como st.title
-                st.markdown("<h1 style='margin: 0; padding: 0;'>Bienvenido a SebIdiomas</h1>", unsafe_allow_html=True)
+                st.markdown('<p class="main-title">Bienvenido a SebIdiomas</p>', unsafe_allow_html=True)
             
-            # Un pequeño espacio de separación antes de las pestañas
             st.write("")
             tab_login, tab_signup = st.tabs(["Iniciar Sesión", "Registrarse"])
         
             with tab_login:
                 email = st.text_input("Correo electrónico")
                 password = st.text_input("Contraseña", type="password")
-                # Forzamos a que todo lo que vaya dentro de estas columnas se alinee verticalmente al centro
                 col_login, col_olvido = st.columns([1, 1], vertical_alignment="center")
         
                 with col_login:
@@ -368,25 +292,9 @@ def main():
                 with col_olvido:
                     msj_ayuda = "Hola Profe Sebastian, olvidé mi contraseña de SebIdiomas. Mi correo es: "
                     link_wa = f"https://wa.me/573114444334?text={msj_ayuda.replace(' ', '%20')}"
-            
-                    # Un diseño limpio que se acopla perfectamente a la altura del st.button
                     st.markdown(f"""
                         <a href="{link_wa}" target="_blank" style="text-decoration: none; display: block; width: 100%;">
-                            <button style="
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                width: 100%;
-                                padding: 10px 12px;
-                                font-family: inherit;
-                                font-size: 14px;
-                                font-weight: 500;
-                                color: #31333f;
-                                background-color: #ffffff;
-                                border: 1px solid rgba(49, 51, 63, 0.2);
-                                border-radius: 8px;
-                                cursor: pointer;
-                                transition: all 0.2s ease;">
+                            <button style="display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px 12px; font-family: inherit; font-size: 14px; font-weight: 500; color: #31333f; background-color: #ffffff; border: 1px solid rgba(49, 51, 63, 0.2); border-radius: 8px; cursor: pointer;">
                                 ¿Olvidaste tu contraseña?
                             </button>
                         </a>
@@ -401,16 +309,17 @@ def main():
                     res = signup_user(new_email, new_pass, new_user, group_id)
                     if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
     
-    # --- FLUJO CON SESIÓN ACTIVA (USUARIO LOGUEADO) ---
     else:
-        # Control extra de protección por si la sesión está en una transición inestable
         if st.session_state.user is None or not hasattr(st.session_state.user, 'id'):
             st.session_state.user = None
             st.query_params.clear()
             st.rerun()
 
-        st.sidebar.image("logo.png", use_container_width=True)      
-        st.sidebar.title("      SebIdiomas")
+        try:
+            st.sidebar.image("logo.png", use_container_width=True)
+        except:
+            pass      
+        st.sidebar.title("SebIdiomas")
         opciones = ["Práctica Diaria", "Ranking de la Clase"]
         
         if st.session_state.user and hasattr(st.session_state.user, 'email'):
@@ -449,23 +358,17 @@ def main():
                 if "es_correcto" not in st.session_state: st.session_state.es_correcto = False
                 if "input_counter" not in st.session_state: st.session_state.input_counter = 0
 
-                # --- LÓGICA DE SELECCIÓN DE EJERCICIO ---
                 if st.session_state.ejercicio_actual is None:
-                    # 1. Obtener info del grupo
                     user_info = supabase.table("profiles").select("group_id, groups(group_name)").eq("id", st.session_state.user.id).single().execute()
                     nombre_grupo = user_info.data['groups']['group_name'] if user_info.data['groups'] else "Sin Grupo"
                     temas_permitidos = RUTA_GRADOS.get(nombre_grupo, ["Vocabulary A1"])
                     
-                    # 2. Traer ejercicios de Supabase que coincidan con los temas
                     res_ex = supabase.table("exercises").select("*").in_("topic", temas_permitidos).execute()
-                    
-                    # 3. Traer progreso del usuario
                     res_prog = supabase.table("user_progress").select("exercise_id, next_review").eq("user_id", st.session_state.user.id).execute()
                     progreso_map = {p['exercise_id']: p['next_review'] for p in res_prog.data}
                     
                     ahora = datetime.datetime.now(datetime.timezone.utc)
                     
-                    # 4. Filtrar: Ejercicios que nunca ha hecho O que ya toca repetir
                     pendientes = []
                     for ex in res_ex.data:
                         if ex['id'] not in progreso_map:
@@ -475,7 +378,6 @@ def main():
                             if ahora >= fecha_repaso:
                                 pendientes.append(ex)
 
-                    # 5. ASIGNACIÓN FINAL
                     if pendientes:
                         st.session_state.ejercicio_actual = random.choice(pendientes)
                     else:
@@ -491,7 +393,6 @@ def main():
                     st.session_state.es_correcto = False
                     st.rerun()
 
-                # --- RENDERIZADO DEL EJERCICIO ---
                 if st.session_state.ejercicio_actual:
                     item = st.session_state.ejercicio_actual
                     ex_id, tipo, contenido = item['id'], item['type'], item['content']
@@ -534,12 +435,7 @@ def main():
                                         respuesta_profe = str(item['content'].get('answer', '')).split('|')[0]
                                         tema_ejercicio = item.get('topic', 'Inglés')
 
-                                        explicacion = explicar_error_ia(
-                                            pregunta_texto, 
-                                            respuesta_profe, 
-                                            resp_user,
-                                            tema_ejercicio
-                                        )
+                                        explicacion = explicar_error_ia(pregunta_texto, respuesta_profe, resp_user, tema_ejercicio)
                                         st.info(explicacion)
                                 else:
                                     st.error("No se pudo recuperar la información del ejercicio para la IA.")
@@ -559,12 +455,10 @@ def main():
                                             st.rerun()
                                         except Exception as e:
                                             st.error(f"Error al enviar: {e}")
-                                            pass
 
                         if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
                             if not st.session_state.es_correcto: 
                                 guardar_progreso(st.session_state.user.id, ex_id, 0)
-                            
                             st.session_state.ejercicio_actual = None
                             st.session_state.input_counter += 1
                             st.rerun()
@@ -572,7 +466,6 @@ def main():
             except Exception as e:
                 st.error(f"Error en práctica: {e}")
             
-            # --- CÁLCULO DE META DINÁMICA ---
             try:
                 user_data = supabase.table("profiles").select("groups(weekly_goal)").eq("id", st.session_state.user.id).single().execute()
                 meta_dinamica = user_data.data['groups']['weekly_goal'] if user_data.data['groups'] else 100
@@ -588,143 +481,199 @@ def main():
                 if porcentaje >= 1.0:
                     st.sidebar.success("¡Meta alcanzada! 🎯")
             except:
-                pass
-                    
+                pass                    
+  
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
-            st.subheader("🚩 Reportes de Errores")
-            try:
-                res_reports = supabase.table("exercise_reports").select("id, user_answer, expected_answer, profiles(username), exercises(content, topic)").eq("status", "pending").execute()
-                if not res_reports.data:
-                    st.write("No hay reportes nuevos.")
-                else:
-                    for report in res_reports.data:
-                        nombre_alumno = report['profiles']['username'] if report['profiles'] else "Usuario"
-                        with st.expander(f"Reporte de {nombre_alumno}"):
-                            st.write(f"**Alumno dijo:** {report['user_answer']}")
-                            c1, c2 = st.columns(2)
-                            if c1.button("Aprobar", key=f"ap_{report['id']}", use_container_width=True):
-                                supabase.table("exercise_reports").update({"status": "approved"}).eq("id", report['id']).execute()
-                                st.rerun()
-                            if c2.button("Rechazar", key=f"re_{report['id']}", use_container_width=True):
-                                supabase.table("exercise_reports").update({"status": "rejected"}).eq("id", report['id']).execute()
-                                st.rerun()
-            except Exception as e:
-                st.error(f"Error cargando reportes: {e}")
-
-            st.divider()
-            # --- SECCIÓN DE GESTIÓN DE ESTUDIANTES ---
-            st.subheader("👥 Gestión de Estudiantes por Grupo")
-    
-            # 1. Traer todos los estudiantes para listarlos (Ajusta los nombres de tu tabla y columnas)
-            try:
-                res_estudiantes = supabase.table("usuarios").select("id, username, email, group_id").execute()
-                lista_estudiantes = res_estudiantes.data if res_estudiantes else []
-            except Exception as e:
-                st.error(f"No se pudieron cargar los estudiantes: {e}")
-                lista_estudiantes = []
-
-            if lista_estudiantes:
-                # Extraer los grupos únicos para armar un filtro en la interfaz
-                grupos_disponibles = sorted(list(set([est.get("group_id") for est in lista_estudiantes if est.get("group_id")])))
-        
-                # Filtro por grupo
-                grupo_seleccionado = st.selectbox("Selecciona el grupo para administrar:", grupos_disponibles)
-        
-                # Filtrar la lista local según el grupo elegido
-                estudiantes_filtrados = [est for est in lista_estudiantes if est.get("group_id") == grupo_seleccionado]
-        
-                if estudiantes_filtrados:
-                    st.write(f"Estudiantes en el grupo **{grupo_seleccionado}**:")
             
-                    # Recorremos los estudiantes y creamos una fila visual para cada uno
-                    for est in estudiantes_filtrados:
-                        col_info, col_accion = st.columns([3, 1], vertical_alignment="center")
-                
-                        with col_info:
-                            st.markdown(f"**{est['username']}** — {est['email']}")
-                
-                        with col_accion:
-                            # Usamos el ID del estudiante en la key del botón para que no se dupliquen componentes
-                            if st.button("❌ Eliminar", key=f"del_{est['id']}", use_container_width=True):
-                                # Guardamos en session_state a quién queremos eliminar para pedir confirmación
-                                st.session_state.confirmar_eliminar = est
-                                st.rerun()
+            tab_reportes, tab_estudiantes, tab_config = st.tabs([
+                "🚩 Reportes de Errores", 
+                "👥 Gestión de Estudiantes por Grupo", 
+                "⚙️ Configuración del Sistema"
+            ])
             
-                    # --- MODAL O BLOQUE DE CONFIRMACIÓN SEGURO ---
-                    if "confirmar_eliminar" in st.session_state and st.session_state.confirmar_eliminar:
-                        est_a_borrar = st.session_state.confirmar_eliminar
-                
-                        st.warning(f"⚠️ ¿Estás seguro de que deseas eliminar a **{est_a_borrar['username']}** del sistema? Esta acción no se puede deshacer.")
-                
-                        col_si, col_no = st.columns(2)
-                        with col_si:
-                            if st.button("Sí, eliminar definitivamente", type="primary", use_container_width=True):
-                                with st.spinner("Eliminando..."):
-                                    if eliminar_estudiante_db(est_a_borrar["id"]):
-                                        st.success(f"¡{est_a_borrar['username']}{['username']} eliminado con éxito!")
+            # --- PESTAÑA 1: REPORTES DE ERRORES ---
+            with tab_reportes:
+                st.subheader("Reportes de Errores Pendientes")
+                try:
+                    res_reports = supabase.table("exercise_reports").select(
+                        "id, user_answer, expected_answer, profiles(username), exercises(content, topic)"
+                    ).eq("status", "pending").execute()
+                    
+                    if not res_reports.data:
+                        st.info("No hay reportes nuevos por revisar. ¡Todo al día! ✨")
+                    else:
+                        for report in res_reports.data:
+                            nombre_alumno = report['profiles']['username'] if report['profiles'] else "Usuario"
+                            with st.expander(f"Reporte de {nombre_alumno}"):
+                                st.write(f"**Alumno dijo:** {report['user_answer']}")
+                                c1, c2 = st.columns(2)
+                                if c1.button("Aprobar", key=f"ap_{report['id']}", use_container_width=True):
+                                    supabase.table("exercise_reports").update({"status": "approved"}).eq("id", report['id']).execute()
+                                    st.rerun()
+                                if c2.button("Rechazar", key=f"re_{report['id']}", use_container_width=True):
+                                    supabase.table("exercise_reports").update({"status": "rejected"}).eq("id", report['id']).execute()
+                                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error cargando reportes: {e}")
+
+            # --- PESTAÑA 2: GESTIÓN DE ESTUDIANTES ---
+            with tab_estudiantes:
+                st.subheader("👥 Gestión de Estudiantes por Grupos")
+                try:
+                    res_estudiantes = supabase.table("profiles").select(
+                        "id, username, group_id, groups(group_name)"
+                    ).execute()
+                    lista_estudiantes = res_estudiantes.data if res_estudiantes else []
+                except Exception as e:
+                    st.error(f"No se pudieron cargar los estudiantes: {e}")
+                    lista_estudiantes = []
+
+                if lista_estudiantes:
+                    mapeo_grupos = {}
+                    for est in lista_estudiantes:
+                        g_id = est.get("group_id")
+                        if g_id:
+                            info_grupo = est.get("groups")
+                            if isinstance(info_grupo, dict):
+                                g_name = info_grupo.get("group_name", g_id)
+                            else:
+                                g_name = g_id
+                            mapeo_grupos[g_id] = g_name
+
+                    if mapeo_grupos:
+                        opciones_combo = list(mapeo_grupos.keys())
+                        grupo_seleccionado_id = st.selectbox(
+                            "Selecciona el grupo para administrar:", 
+                            opciones_combo, 
+                            format_func=lambda x: f"🏫 {mapeo_grupos[x]} ({x})",
+                            key="sb_admin_grupos"
+                        )
+                        
+                        estudiantes_filtrados = [est for est in lista_estudiantes if est.get("group_id") == grupo_seleccionado_id]
+                        
+                        if estudiantes_filtrados:
+                            st.write(f"Estudiantes activos en el grupo **{mapeo_grupos[grupo_seleccionado_id]}**:")
+                            
+                            for est in estudiantes_filtrados:
+                                col_info, col_accion = st.columns([3, 1], vertical_alignment="center")
+                                with col_info:
+                                    nombre_usuario = est.get("username", "Sin nombre")
+                                    st.markdown(f"👤 **{nombre_usuario}**")
+                                with col_accion:
+                                    if st.button("❌ Eliminar", key=f"del_{est['id']}", use_container_width=True):
+                                        st.session_state.confirmar_eliminar = est
+                                        st.rerun()
+                            
+                            if "confirmar_eliminar" in st.session_state and st.session_state.confirmar_eliminar:
+                                est_a_borrar = st.session_state.confirmar_eliminar
+                                nombre_borrar = est_a_borrar.get("username", "este estudiante")
+                                
+                                st.warning(f"⚠️ ¿Estás seguro de que deseas eliminar a **{nombre_borrar}**? Perderá el acceso.")
+                                col_si, col_no = st.columns(2)
+                                with col_si:
+                                    if st.button("Sí, eliminar", type="primary", use_container_width=True, key="btn_conf_si"):
+                                        with st.spinner("Eliminando..."):
+                                            if eliminar_estudiante_db(est_a_borrar["id"]):
+                                                st.success(f"¡{nombre_borrar} eliminado!")
+                                                st.session_state.confirmar_eliminar = None
+                                                st.rerun()
+                                with col_no:
+                                    if st.button("Cancelar", use_container_width=True, key="btn_conf_no"):
                                         st.session_state.confirmar_eliminar = None
                                         st.rerun()
-                        with col_no:
-                            if st.button("Cancelar", use_container_width=True):
-                                st.session_state.confirmar_eliminar = None
-                                st.rerun()
+                        else:
+                            st.info("No hay estudiantes registrados en este grupo.")
+                    else:
+                        st.info("No hay códigos de grupo vinculados a ningún estudiante.")
                 else:
-                    st.info("No hay estudiantes registrados en este grupo.")
-            else:
-                st.info("Aún no hay estudiantes registrados en la plataforma.")
-            
-            st.divider()
-            st.subheader("📈 Seguimiento de Metas")
-            
-            col1, col2 = st.columns(2)
-            fecha_inicio = col1.date_input("Desde", datetime.date.today() - datetime.timedelta(days=30))
-            fecha_fin = col2.date_input("Hasta", datetime.date.today())
-            
-            res_est_meta = supabase.table("profiles").select("id, username").execute()
-            if res_est_meta.data:
-                estudiantes = {e['username']: e['id'] for e in res_est_meta.data}
-                sel_estudiante = st.selectbox("Seleccionar Estudiante para auditar:", list(estudiantes.keys()))
-                user_id_auditar = estudiantes[sel_estudiante]
+                    st.info("No hay perfiles registrados en el sistema.")
 
-                res_auditoria = supabase.table("user_progress") \
-                    .select("last_reviewed") \
-                    .eq("user_id", user_id_auditar) \
-                    .gte("last_reviewed", fecha_inicio.isoformat()) \
-                    .lte("last_reviewed", fecha_fin.isoformat()) \
-                    .execute()
+            # --- PESTAÑA 3: CONFIGURACIÓN / METAS ---
+            with tab_config:
+                st.subheader("⚙️ Configuración del Sistema")
+                with st.container(border=True):
+                    st.markdown("### 🔑 Gestión de Usuarios (Mantenimiento)")
+                    st.write("Herramientas globales para el control de accesos de la plataforma.")
+                    st.write("")
+                    
+                    user_a_resetear = st.text_input("Correo del alumno que olvidó la clave:")
+                    if st.button("Enviar correo de recuperación"):
+                        if reset_password_admin(user_a_resetear):
+                            st.success("Correo de recuperación enviado con éxito.")
+                    
+                with st.container(border=True):
+                    st.markdown("### 📈 Seguimiento de Metas")
+                    st.write("Panel para la administración y control de las metas globales por lote asignadas a los muchachos.")
+                    
+                    # 1. Selección de fechas y usuario
+                    col1, col2 = st.columns(2)
+                    fecha_inicio = col1.date_input("Desde", datetime.date.today() - datetime.timedelta(days=30))
+                    fecha_fin = col2.date_input("Hasta", datetime.date.today())
+           
+                    res_est_meta = supabase.table("profiles").select("id, username").execute()
+                    if res_est_meta.data:
+                        estudiantes = {e['username']: e['id'] for e in res_est_meta.data}
+                        sel_estudiante = st.selectbox("Seleccionar Estudiante para auditar:", list(estudiantes.keys()))
+                        user_id_auditar = estudiantes[sel_estudiante]
 
-                if res_auditoria.data:
-                    import pandas as pd
+                       # 2. Consultar progreso en ese rango
+                        res_auditoria = supabase.table("user_progress") \
+                            .select("last_reviewed") \
+                            .eq("user_id", user_id_auditar) \
+                            .gte("last_reviewed", fecha_inicio.isoformat()) \
+                            .lte("last_reviewed", fecha_fin.isoformat()) \
+                            .execute()
+
+                        if res_auditoria.data:
+                           import pandas as pd
+                   
+                           df = pd.DataFrame(res_auditoria.data)
+                           df['last_reviewed'] = pd.to_datetime(df['last_reviewed'])
+                   
+                            # Agrupar por semana (empezando lunes 'W-MON')
+                            # Contamos cuántos ejercicios hizo por semana
+                           df_semanal = df.groupby(pd.Grouper(key='last_reviewed', freq='W-MON')).size().reset_index(name='conteo')
+                   
+                            # 3. Mostrar Resultados
+                           metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
+                           metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
+                   
+                           c1, c2 = st.columns(2)
+                           c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
+                           c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
+                           c2.metric("Total Ejercicios", f"{len(res_auditoria.data)}")
+                   
+                           # Visualización opcional para el docente
+                           with st.expander("Ver detalle por semanas"):
+                               df_semanal['Cumplió'] = df_semanal['conteo'].apply(lambda x: "✅" if x >= 100 else "❌")
+                               st.table(df_semanal.rename(columns={'last_reviewed': 'Semana del (Lunes)', 'conteo': 'Ejercicios'}))
+                        else:
+                           st.info("No hay actividad registrada en este rango de fechas.")
+                st.divider()
+                st.subheader("🎯 Configurar Metas por Grupo")
+                try:
+                   # Traer los grupos actuales
+                   res_grupos = supabase.table("groups").select("id, group_name, weekly_goal").execute()
+                   if res_grupos.data:
+                       for grp in res_grupos.data:
+                           with st.expander(f"Meta de {grp['group_name']}"):
+                               nueva_meta = st.number_input(
+                                   f"Ejercicios semanales para {grp['group_name']}:", 
+                                   value=int(grp['weekly_goal']),
+                                   key=f"goal_{grp['id']}"
+                               )
+                               if st.button("Actualizar Meta", key=f"btn_goal_{grp['id']}"):
+                                   supabase.table("groups").update({"weekly_goal": nueva_meta}).eq("id", grp['id']).execute()
+                                   st.success("¡Meta actualizada!")
+                                   st.rerun()
+                except Exception as e:
+                   st.error(f"Error al cargar metas: {e}")                    
+                   st.error(f"Error al cargar metas: {e}")         
                     
-                    df = pd.DataFrame(res_auditoria.data)
-                    df['last_reviewed'] = pd.to_datetime(df['last_reviewed'])
-                    
-                    df_semanal = df.groupby(pd.Grouper(key='last_reviewed', freq='W-MON')).size().reset_index(name='conteo')
-                    
-                    metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
-                    
-                    c1, c2 = st.columns(2)
-                    c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
-                    c2.metric("Total Ejercicios", f"{len(res_auditoria.data)}")
-                    
-                    with st.expander("Ver detalle por semanas"):
-                        df_semanal['Cumplió'] = df_semanal['conteo'].apply(lambda x: "✅" if x >= 100 else "❌")
-                        st.table(df_semanal.rename(columns={'last_reviewed': 'Semana del (Lunes)', 'conteo': 'Ejercicios'}))
-                else:
-                    st.info("No hay actividad registrada en este rango de fechas.")
-                    
-            st.divider()        
-            st.subheader("🔑 Gestión de Usuarios")
-            user_a_resetear = st.text_input("Correo del alumno que olvidó la clave:")
-            if st.button("Enviar correo de recuperación"):
-                 if reset_password_admin(user_a_resetear):
-                        st.success("Correo de recuperación enviado con éxito.")
-                        
-         #-------CERRAR SESIÓN------------------        
+  #-------CERRAR SESIÓN------------------        
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
             st.session_state.user = None
-            st.rerun()
 if __name__ == "__main__":
     main()
