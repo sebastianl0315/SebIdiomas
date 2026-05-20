@@ -5,6 +5,7 @@ from logic import calcular_proximo_repaso
 import random
 import requests
 import json
+from streamlit_cookies_controller import CookieController
 
 # --- 1. CONFIGURACIÓN DE CONEXIÓN ---
 url = st.secrets["SUPABASE_URL"]
@@ -27,7 +28,7 @@ def validar_respuesta(intento, correcta):
     # 3. Si no es exacta, calculamos el porcentaje de similitud (Ratio)
     similitud = difflib.SequenceMatcher(None, intento_limpio, correcta_limpia).ratio()
     
-    # 4. Si la coincidencia es del 90% (0.90) o más, la damos por válida
+    # 4. Si la coincidencia es del 95% (0.95) o más, la damos por válida
     return similitud >= 0.95
 
 def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
@@ -180,7 +181,7 @@ def main():
         page_icon="favicon.png", 
         layout="centered"
     )
-    
+    controller = CookieController()    
     # CSS Sanado y protegido para evitar pantallas blancas por colapso de renderizado
     st.markdown("""
          <style>
@@ -261,6 +262,18 @@ def main():
  
     if "user" not in st.session_state:
         st.session_state.user = None
+        # Intentamos recuperar el token de Supabase guardado en el navegador
+        sb_session_token = controller.get("sb_session")
+        if sb_session_token:
+            try:
+                # Le decimos a Supabase que use el token guardado para restaurar la sesión
+                res_sesion = supabase.auth.set_session(sb_session_token["access_token"], sb_session_token["refresh_token"])
+                if res_sesion and res_sesion.user:
+                    st.session_state.user = res_sesion.user
+            except Exception as e:
+                # Si el token expiró o falló, removemos la cookie dañada
+                controller.remove("sb_session")
+                
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
 
