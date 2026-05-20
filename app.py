@@ -348,6 +348,12 @@ def main():
                         res = login_user(email, password)
                         if res:
                             st.session_state.user = res.user
+                            # Guardamos los tokens en una cookie que dure 30 días
+                            session_data = {
+                                "access_token": res.session.access_token,
+                                "refresh_token": res.session.refresh_token
+                            }
+                            controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
                             st.rerun()
         
                 with col_olvido:
