@@ -28,7 +28,7 @@ def validar_respuesta(intento, correcta):
     similitud = difflib.SequenceMatcher(None, intento_limpio, correcta_limpia).ratio()
     
     # 4. Si la coincidencia es del 90% (0.90) o más, la damos por válida
-    return similitud >= 0.90
+    return similitud >= 0.95
 
 def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
     api_key = st.secrets["GOOGLE_API_KEY"]
