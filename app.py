@@ -742,5 +742,6 @@ def main():
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
             st.session_state.user = None
+            controller.remove("sb_session")
 if __name__ == "__main__":
     main()
