@@ -169,6 +169,15 @@ def actualizar_contrasena_usuario(nueva_contrasena):
         st.error(f"Error al cambiar la contraseña: {e}")
         return False
 
+def eliminar_estudiante_db(user_id):
+    try:
+        # Reemplaza 'usuarios' por el nombre exacto de tu tabla de estudiantes
+        supabase.table("usuarios").delete().eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error al eliminar en la base de datos: {e}")
+        return False
+
 # --- 3. INTERFAZ PRINCIPAL ---
 def main():
     st.set_page_config(
@@ -431,7 +440,7 @@ def main():
                 "10-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-B 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
-                "Grupo_Prueba": ["Personal Information Basics", "Verb to be"],
+                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple"],
             }
 
             try:
@@ -604,16 +613,66 @@ def main():
                 st.error(f"Error cargando reportes: {e}")
 
             st.divider()
-            st.subheader("Estudiantes por Grupo")
+            # --- SECCIÓN DE GESTIÓN DE ESTUDIANTES ---
+            st.subheader("👥 Gestión de Estudiantes por Grupo")
+    
+            # 1. Traer todos los estudiantes para listarlos (Ajusta los nombres de tu tabla y columnas)
             try:
-                res_est = supabase.table("profiles").select("id, username, groups(group_name)").execute()
-                if res_est.data:
-                    nombres_grupos = sorted(list(set([e['groups']['group_name'] for e in res_est.data if e['groups']])))
-                    sel = st.selectbox("Seleccionar Grupo:", nombres_grupos)
-                    for est in [e for e in res_est.data if e['groups'] and e['groups']['group_name'] == sel]:
-                        st.write(f"👤 {est['username']}")
+                res_estudiantes = supabase.table("usuarios").select("id, username, email, group_id").execute()
+                lista_estudiantes = res_estudiantes.data if res_estudiantes else []
             except Exception as e:
-                st.error(f"Error panel: {e}")
+                st.error(f"No se pudieron cargar los estudiantes: {e}")
+                lista_estudiantes = []
+
+            if lista_estudiantes:
+                # Extraer los grupos únicos para armar un filtro en la interfaz
+                grupos_disponibles = sorted(list(set([est.get("group_id") for est in lista_estudiantes if est.get("group_id")])))
+        
+                # Filtro por grupo
+                grupo_seleccionado = st.selectbox("Selecciona el grupo para administrar:", grupos_disponibles)
+        
+                # Filtrar la lista local según el grupo elegido
+                estudiantes_filtrados = [est for est in lista_estudiantes if est.get("group_id") == grupo_seleccionado]
+        
+                if estudiantes_filtrados:
+                    st.write(f"Estudiantes en el grupo **{grupo_seleccionado}**:")
+            
+                    # Recorremos los estudiantes y creamos una fila visual para cada uno
+                    for est in estudiantes_filtrados:
+                        col_info, col_accion = st.columns([3, 1], vertical_alignment="center")
+                
+                        with col_info:
+                            st.markdown(f"**{est['username']}** — {est['email']}")
+                
+                        with col_accion:
+                            # Usamos el ID del estudiante en la key del botón para que no se dupliquen componentes
+                            if st.button("❌ Eliminar", key=f"del_{est['id']}", use_container_width=True):
+                                # Guardamos en session_state a quién queremos eliminar para pedir confirmación
+                                st.session_state.confirmar_eliminar = est
+                                st.rerun()
+            
+                    # --- MODAL O BLOQUE DE CONFIRMACIÓN SEGURO ---
+                    if "confirmar_eliminar" in st.session_state and st.session_state.confirmar_eliminar:
+                        est_a_borrar = st.session_state.confirmar_eliminar
+                
+                        st.warning(f"⚠️ ¿Estás seguro de que deseas eliminar a **{est_a_borrar['username']}** del sistema? Esta acción no se puede deshacer.")
+                
+                        col_si, col_no = st.columns(2)
+                        with col_si:
+                            if st.button("Sí, eliminar definitivamente", type="primary", use_container_width=True):
+                                with st.spinner("Eliminando..."):
+                                    if eliminar_estudiante_db(est_a_borrar["id"]):
+                                        st.success(f"¡{est_a_borrar['username']}{['username']} eliminado con éxito!")
+                                        st.session_state.confirmar_eliminar = None
+                                        st.rerun()
+                        with col_no:
+                            if st.button("Cancelar", use_container_width=True):
+                                st.session_state.confirmar_eliminar = None
+                                st.rerun()
+                else:
+                    st.info("No hay estudiantes registrados en este grupo.")
+            else:
+                st.info("Aún no hay estudiantes registrados en la plataforma.")
             
             st.divider()
             st.subheader("📈 Seguimiento de Metas")
