@@ -13,10 +13,22 @@ supabase = create_client(url, key)
 
 
 # --- 2. FUNCIONES DE APOYO ---
+import difflib  # Asegúrate de que esta línea quede dentro o arriba de la función
+
 def validar_respuesta(intento, correcta):
+    # 1. Limpieza básica de espacios y minúsculas
     intento_limpio = intento.strip().lower().rstrip('.')
     correcta_limpia = correcta.strip().lower().rstrip('.')
-    return intento_limpio == correcta_limpia
+    
+    # 2. Si es una coincidencia exacta, se aprueba de una
+    if intento_limpio == correcta_limpia:
+        return True
+        
+    # 3. Si no es exacta, calculamos el porcentaje de similitud (Ratio)
+    similitud = difflib.SequenceMatcher(None, intento_limpio, correcta_limpia).ratio()
+    
+    # 4. Si la coincidencia es del 90% (0.90) o más, la damos por válida
+    return similitud >= 0.90
 
 def generar_ejercicio_ia(tema, tipo_ejercicio="translate"):
     api_key = st.secrets["GOOGLE_API_KEY"]
@@ -171,23 +183,36 @@ def main():
     
     # CSS Sanado y protegido para evitar pantallas blancas por colapso de renderizado
     st.markdown("""
-        <style>
+         <style>
+        /* Fondo general de la app */
         .stApp { background-color: #f8f9fa !important; }
         
-        /* Estilos específicos para textos sin romper el árbol del DOM */
-        .main-title {
+        /* Forzar visibilidad de Títulos y Subtítulos en móviles */
+        h1, h2, h3, span[data-baseweb="typewriter"] {
             color: #1d3557 !important;
-            font-size: 2.2rem;
-            font-weight: bold;
-            margin: 0;
-            padding: 0;
+            opacity: 1 !important;
+            display: block !important;
+        }
+
+        /* Ajuste de márgenes en móviles para que no se esconda el contenido */
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
         }
         
-        /* Contenedor lateral */
+        /* Texto principal */
+        .stMarkdown p, .stText, label, .stWidgetLabel p { 
+            color: #1d3557 !important; 
+            font-weight: 500 !important; 
+        }
+        
+        /* --- BARRA LATERAL --- */
         [data-testid="stSidebar"] { background-color: #1d3557 !important; }
         [data-testid="stSidebar"] * { color: white !important; }
         
-        /* Botones optimizados para Touch */
+        /* Botones grandes para dedos (touch friendly) */
         div.stButton > button {
             background-color: #e63946 !important;
             color: white !important;
@@ -195,18 +220,41 @@ def main():
             height: 3em !important;
             width: 100% !important;
             margin-top: 10px !important;
-            border: none !important;
         }
-        
-        div.stButton > button:hover {
-            background-color: #d62839 !important;
-            color: white !important;
+        /* Forzar visibilidad del texto de la meta semanal en el sidebar */
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: #ffffff !important;
+            font-size: 1.1rem !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
-        
-        /* Barra de progreso de la barra lateral */
+
+        /* Hacer la barra de progreso más alta para que sea fácil de ver en touch */
         [data-testid="stSidebar"] .stProgress > div > div > div > div {
             background-color: #e63946 !important;
             height: 10px;
+        }
+        /* --- ESTILO PARA OPCIONES DE SELECCIÓN MÚLTIPLE (RADIO) --- */
+        
+        /* Color del texto de las opciones no seleccionadas */
+        div[data-testid="stMarkdownContainer"] p {
+            color: #1d3557 !important;
+        }
+
+        /* Forzar color en los labels de los radio buttons */
+        div[class*="st-"] label p {
+            color: #1d3557 !important;
+            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+        }
+
+        /* Espaciado entre opciones para que no queden pegadas en móvil */
+        div[data-testid="stWidgetLabel"] {
+            margin-bottom: 10px !important;
+        }
+
+        /* Ajuste para el círculo del radio (opcional, por si no se ve) */
+        div[data-baseweb="radio"] div {
+            text-shadow: none !important;
         }
         </style>
     """, unsafe_allow_html=True)
