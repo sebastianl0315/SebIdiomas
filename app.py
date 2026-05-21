@@ -488,7 +488,7 @@ def main():
                             if st.session_state.es_correcto: 
                                 guardar_progreso(st.session_state.user.id, ex_id, 5)
                             st.rerun()
-                            
+
                     else:
                         if st.session_state.es_correcto:
                             st.success("¡Excelente!")
@@ -507,7 +507,7 @@ def main():
                                     st.session_state[f"ver_explicacion_{ex_id}"] = True
 
                             with col_reporte:
-                                # Ahora el botón de reporte SIEMPRE está visible si fallan, no depende de la IA
+                                # El botón de reporte único y siempre visible si fallan
                                 if ex_id != "ia_gen":
                                     if st.button("🚩 Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}", use_container_width=True):
                                         try:
@@ -536,21 +536,6 @@ def main():
                                         st.info(explicacion)
                                 else:
                                     st.error("No se pudo recuperar la información del ejercicio para la IA.")
-                                if ex_id != "ia_gen":
-                                    if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
-                                        try:
-                                            reporte = {
-                                                "user_id": st.session_state.user.id, 
-                                                "exercise_id": ex_id,
-                                                "user_answer": str(resp_user),
-                                                "expected_answer": str(contenido['answer']),
-                                                "status": "pending"
-                                            }
-                                            supabase.table("exercise_reports").insert(reporte).execute()
-                                            st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Error al enviar: {e}")
 
                         if st.button("Siguiente Ejercicio ➡️", use_container_width=True):
                             if not st.session_state.es_correcto: 
@@ -764,8 +749,8 @@ def main():
                                    st.success("¡Meta actualizada!")
                                    st.rerun()
                 except Exception as e:
-                   st.error(f"Error al cargar metas: {e}")                    
-                   st.error(f"Error al cargar metas: {e}")         
+                   st.error(f"Error al cargar metas: {e}")                   
+                         
                     
   #-------CERRAR SESIÓN------------------        
         st.sidebar.divider()
