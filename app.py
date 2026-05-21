@@ -174,6 +174,14 @@ def eliminar_estudiante_db(user_id):
         st.error(f"Error al eliminar en la base de datos: {e}")
         return False
 
+def obtener_inicio_semana_actual():
+    hoy = datetime.date.today()
+    # weekday() devuelve 0 para lunes, 6 para domingo
+    dias_al_lunes = hoy.weekday() 
+    lunes_actual = hoy - datetime.timedelta(days=dias_al_lunes)
+    # Retorna la fecha en formato string 'YYYY-MM-DD' para la consulta de Supabase
+    return lunes_actual.strftime("%Y-%m-%d")
+
 # --- 3. INTERFAZ PRINCIPAL ---
 def main():
     st.set_page_config(
@@ -436,6 +444,48 @@ def main():
 
         elif menu == "Práctica Diaria":
             st.title("📚 Practice Room")
+            
+            # --- NUEVA LÓGICA DE META SEMANAL EN EL PANEL PRINCIPAL ---
+            try:
+                # Calculamos la fecha de inicio de esta semana (Lunes 00:00)
+                fecha_inicio_semana = obtener_inicio_semana_actual()
+                
+                # Consultamos los ejercicios correctos de la semana actual
+                res_progreso_semanal = supabase.table("user_progress") \
+                    .select("ease_factor") \
+                    .eq("user_id", st.session_state.user.id) \
+                    .gte("last_reviewed", fecha_inicio_semana) \
+                    .gt("repetitions", 0) \
+                    .execute()
+                
+                # Calculamos los puntos (Pregunta Difícil < 2.5 = 2 pts, Fácil >= 2.5 = 1 pt)
+                puntos_semanales = 0
+                if res_progreso_semanal.data:
+                    for registro in res_progreso_semanal.data:
+                        if registro["ease_factor"] < 2.5:
+                            puntos_semanales += 2
+                        else:
+                            puntos_semanales += 1
+                            
+            except Exception as e:
+                puntos_semanales = 0
+                st.error(f"Error al sincronizar meta semanal: {e}")              
+
+            # 3. Renderizado de la Barra en el Panel Principal (Meta fija de 100)
+            META_FIJA = 100
+            st.markdown(f"### 🎯 Tu Meta Semanal: {puntos_semanales} / {META_FIJA} puntos")
+            
+            porcentaje_meta = min(puntos_semanales / META_FIJA, 1.0)
+            st.progress(porcentaje_meta)
+            
+            if puntos_semanales >= META_FIJA:
+                st.success("¡Excelente trabajo! 🎉 Has alcanzado tu meta de la semana.")
+            else:
+                st.caption(f"Te faltan {META_FIJA - puntos_semanales} puntos para cumplir tu meta. Se reinicia el domingo a la medianoche.")
+            
+            st.divider()
+            
+            # --- AQUÍ CONTINÚA TU LÓGICA NORMAL DE RUTA DE GRADOS ---
             RUTA_GRADOS = {
                 "10-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
@@ -571,22 +621,7 @@ def main():
             except Exception as e:
                 st.error(f"Error en práctica: {e}")
             
-            try:
-                user_data = supabase.table("profiles").select("groups(weekly_goal)").eq("id", st.session_state.user.id).single().execute()
-                meta_dinamica = user_data.data['groups']['weekly_goal'] if user_data.data['groups'] else 100
-
-                una_semana_atras = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-                progreso_semana = supabase.table("user_progress").select("id").eq("user_id", st.session_state.user.id).gt("last_reviewed", una_semana_atras).execute()
-    
-                completados = len(progreso_semana.data)
-                porcentaje = min(completados / meta_dinamica, 1.0)
-    
-                st.sidebar.write(f"📊 Meta Semanal: {completados}/{meta_dinamica}")
-                st.sidebar.progress(porcentaje)
-                if porcentaje >= 1.0:
-                    st.sidebar.success("¡Meta alcanzada! 🎯")
-            except:
-                pass                    
+                          
   
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
@@ -742,11 +777,9 @@ def main():
                    
                             # 3. Mostrar Resultados
                            metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
-                           metas_cumplidas = df_semanal[df_semanal['conteo'] >= 100].shape[0]
-                   
+                  
                            c1, c2 = st.columns(2)
-                           c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
-                           c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")
+                           c1.metric("Metas Cumplidas", f"{metas_cumplidas} semanas")       
                            c2.metric("Total Ejercicios", f"{len(res_auditoria.data)}")
                    
                            # Visualización opcional para el docente
