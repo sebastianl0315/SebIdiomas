@@ -488,6 +488,7 @@ def main():
                             if st.session_state.es_correcto: 
                                 guardar_progreso(st.session_state.user.id, ex_id, 5)
                             st.rerun()
+                            
                     else:
                         if st.session_state.es_correcto:
                             st.success("¡Excelente!")
@@ -495,7 +496,36 @@ def main():
                         else:              
                             st.error(f"❌ La respuesta correcta era: {str(contenido['answer']).split('|')[0]}")
     
-                            if st.button("🤔 ¿Por qué me equivoqué? Explícame", key=f"expl_{ex_id}"):
+                            # --- CONTROL DE IA CON SESSION_STATE ---
+                            if f"ver_explicacion_{ex_id}" not in st.session_state:
+                                st.session_state[f"ver_explicacion_{ex_id}"] = False
+
+                            col_ia, col_reporte = st.columns(2)
+
+                            with col_ia:
+                                if st.button("🤔 ¿Por qué me equivoqué?", key=f"expl_{ex_id}", use_container_width=True):
+                                    st.session_state[f"ver_explicacion_{ex_id}"] = True
+
+                            with col_reporte:
+                                # Ahora el botón de reporte SIEMPRE está visible si fallan, no depende de la IA
+                                if ex_id != "ia_gen":
+                                    if st.button("🚩 Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}", use_container_width=True):
+                                        try:
+                                            reporte = {
+                                                "user_id": st.session_state.user.id, 
+                                                "exercise_id": ex_id,
+                                                "user_answer": str(resp_user),
+                                                "expected_answer": str(contenido['answer']),
+                                                "status": "pending"
+                                            }
+                                            supabase.table("exercise_reports").insert(reporte).execute()
+                                            st.success("✅ Reporte enviado. El Profe Sebastián lo revisará.")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Error al enviar: {e}")
+
+                            # Si el alumno pidió la explicación, se muestra abajo de los botones
+                            if st.session_state[f"ver_explicacion_{ex_id}"]:
                                 if item and 'content' in item:
                                     with st.spinner("El profe está revisando tu respuesta..."):
                                         pregunta_texto = item['content'].get('question', 'la frase anterior')
@@ -506,7 +536,6 @@ def main():
                                         st.info(explicacion)
                                 else:
                                     st.error("No se pudo recuperar la información del ejercicio para la IA.")
-                                      
                                 if ex_id != "ia_gen":
                                     if st.button("Mi respuesta es correcta", key=f"btn_reclamo_{ex_id}"):
                                         try:
@@ -741,7 +770,7 @@ def main():
   #-------CERRAR SESIÓN------------------        
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
-            st.session_state.user = None
             controller.remove("sb_session")
+            st.session_state.user = None            
 if __name__ == "__main__":
     main()
