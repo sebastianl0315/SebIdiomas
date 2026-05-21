@@ -477,12 +477,7 @@ def main():
             
             porcentaje_meta = min(puntos_semanales / META_FIJA, 1.0)
             st.progress(porcentaje_meta)
-            
-            if puntos_semanales >= META_FIJA:
-                st.success("¡Excelente trabajo! 🎉 Has alcanzado tu meta de la semana.")
-            else:
-                st.caption(f"Te faltan {META_FIJA - puntos_semanales} puntos para cumplir tu meta. Se reinicia el domingo a la medianoche.")
-            
+           
             st.divider()
             
             # --- AQUÍ CONTINÚA TU LÓGICA NORMAL DE RUTA DE GRADOS ---
