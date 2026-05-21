@@ -369,12 +369,36 @@ def main():
                     
             with tab_signup:
                 new_email = st.text_input("Nuevo Correo")
+                # NUEVO: Campo para confirmar el correo electrónico
+                confirm_email = st.text_input("Confirmar Correo")
                 new_pass = st.text_input("Nueva Contraseña", type="password")
+                confirm_pass = st.text_input("Confirmar Contraseña", type="password")
                 new_user = st.text_input("Nombre de Usuario")
                 group_id = st.text_input("Código de Grupo")
+                
                 if st.button("Crear Cuenta", use_container_width=True):
-                    res = signup_user(new_email, new_pass, new_user, group_id)
-                    if res: st.success("¡Cuenta creada! Ya puedes iniciar sesión.")
+                    # 1. Validación de campos vacíos
+                    if not new_email or not confirm_email or not new_pass or not confirm_pass or not new_user or not group_id:
+                        st.error("⚠️ Todos los campos son obligatorios.")
+                    
+                    # 2. Validación de correos coincidentes
+                    elif new_email.strip().lower() != confirm_email.strip().lower():
+                        st.error("⚠️ Los correos electrónicos no coinciden. Por favor, verifícalos.")
+                    
+                    # 3. Validación de longitud de contraseña
+                    elif len(new_pass) < 6:
+                        st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
+                    
+                    # 4. Validación de contraseñas coincidentes
+                    elif new_pass != confirm_pass:
+                        st.error("⚠️ Las contraseñas no coinciden. Verifica bien lo que escribiste.")
+                    
+                    # 5. Si todo está perfecto, se procede al registro
+                    else:
+                        with st.spinner("Creando cuenta..."):
+                            res = signup_user(new_email.strip(), new_pass, new_user.strip(), group_id.strip())
+                            if res: 
+                                st.success("¡Cuenta creada con éxito! Ya puedes pasar a la pestaña de 'Iniciar Sesión'.")
     
     else:
         if st.session_state.user is None or not hasattr(st.session_state.user, 'id'):
