@@ -420,7 +420,7 @@ def main():
         except:
             pass      
         st.sidebar.title("SebIdiomas")
-        opciones = ["Práctica Diaria", "Ranking de la Clase"]
+        opciones = ["Práctica Diaria", "Ranking de la Clase", "Mi Perfil"]
         
         if st.session_state.user and hasattr(st.session_state.user, 'email'):
             if st.session_state.user.email == "profesebastianloaiza@gmail.com":
@@ -478,7 +478,12 @@ def main():
             
             porcentaje_meta = min(puntos_semanales / META_FIJA, 1.0)
             st.progress(porcentaje_meta)
-           
+            
+            if puntos_semanales >= META_FIJA:
+                st.success("¡Excelente trabajo! 🎉 Has alcanzado tu meta de la semana.")
+            else:
+                st.caption(f"Te faltan {META_FIJA - puntos_semanales} puntos para cumplir tu meta. Se reinicia el domingo a la medianoche.")
+            
             st.divider()
             
             # --- AQUÍ CONTINÚA TU LÓGICA NORMAL DE RUTA DE GRADOS ---
@@ -486,7 +491,7 @@ def main():
                 "10-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-B 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
-                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple", "There is / There are" "Adjectives"],
+                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple", "There is / There are", "Adjectives"],
             }
 
             try:
@@ -525,6 +530,15 @@ def main():
                                 st.session_state.ejercicio_actual = nuevo_ejercicio
                             else:
                                 st.error("No hay ejercicios disponibles ni conexión con la IA.")
+                    
+                    # --- NUEVA LÓGICA: ALEATORIZAR OPCIONES DE OPCIÓN MÚLTIPLE ---
+                    if st.session_state.ejercicio_actual and st.session_state.ejercicio_actual.get('type') == 'multiple_choice':
+                        opciones_originales = list(st.session_state.ejercicio_actual['content']['options'])
+                        # Creamos una copia y la mezclamos para que no afecte el orden original de la base de datos
+                        random.shuffle(opciones_originales)
+                        st.session_state.opciones_mezcladas = opciones_originales
+                    else:
+                        st.session_state.opciones_mezcladas = []
                     
                     st.session_state.respondido = False
                     st.session_state.es_correcto = False
@@ -617,7 +631,75 @@ def main():
             except Exception as e:
                 st.error(f"Error en práctica: {e}")
             
-                          
+        elif menu == "Mi Perfil":
+            st.title("👤 Mi Perfil")
+            st.write("Gestiona la información de tu cuenta. Mantén tus datos actualizados de forma segura.")
+            
+            # Traer los datos actuales en tiempo real directamente de Supabase
+            try:
+                datos_actuales = supabase.table("profiles").select("username").eq("id", st.session_state.user.id).single().execute()
+                current_username = datos_actuales.data["username"] if datos_actuales.data else st.session_state.user.user_metadata.get("username", "")
+            except:
+                current_username = st.session_state.user.user_metadata.get("username", "")
+
+            # --- SECCIÓN 1: ACTUALIZAR NOMBRE DE USUARIO ---
+            st.subheader("📝 Cambiar Nombre de Usuario")
+            nuevo_username = st.text_input("Nuevo nombre de usuario", value=current_username)
+            if st.button("Actualizar Nombre", key="btn_update_user"):
+                if nuevo_username.strip():
+                    try:
+                        # 1. Actualizar tabla pública 'profiles'
+                        supabase.table("profiles").update({"username": nuevo_username.strip()}).eq("id", st.session_state.user.id).execute()
+                        # 2. Actualizar metadatos de autenticación en Supabase
+                        supabase.auth.update_user({"data": {"username": nuevo_username.strip()}})
+                        st.success("¡Nombre de usuario actualizado con éxito! 🎉")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al actualizar el nombre: {e}")
+                else:
+                    st.error("El nombre de usuario no puede estar vacío.")
+
+            st.divider()
+
+            # --- SECCIÓN 2: ACTUALIZAR CORREO ELECTRÓNICO ---
+            st.subheader("📧 Cambiar Correo Electrónico")
+            st.caption(f"Correo actual: `{st.session_state.user.email}`")
+            nuevo_correo = st.text_input("Nuevo Correo Electrónico")
+            confirmar_correo = st.text_input("Confirmar Nuevo Correo")
+            
+            if st.button("Actualizar Correo", key="btn_update_email"):
+                if not nuevo_correo or not confirmar_correo:
+                    st.error("Todos los campos de correo son obligatorios.")
+                elif nuevo_correo.strip().lower() != confirmar_correo.strip().lower():
+                    st.error("Los correos electrónicos ingresados no coinciden.")
+                else:
+                    try:
+                        # En Supabase, cambiar el correo envía confirmaciones por seguridad
+                        supabase.auth.update_user({"email": nuevo_correo.strip().lower()})
+                        st.success("📩 ¡Solicitud enviada! Se ha enviado un enlace de confirmación a tu nuevo correo para validar el cambio.")
+                    except Exception as e:
+                        st.error(f"Error al cambiar el correo: {e}")
+
+            st.divider()
+
+            # --- SECCIÓN 3: ACTUALIZAR CONTRASEÑA ---
+            st.subheader("🔒 Cambiar Contraseña")
+            nueva_pass = st.text_input("Nueva Contraseña", type="password")
+            confirmar_pass = st.text_input("Confirmar Nueva Contraseña", type="password")
+            
+            if st.button("Actualizar Contraseña", key="btn_update_pass"):
+                if not nueva_pass or not confirmar_pass:
+                    st.error("Por favor, llena ambos campos de contraseña.")
+                elif len(nueva_pass) < 6:
+                    st.error("La nueva contraseña debe tener al menos 6 caracteres.")
+                elif nueva_pass != confirmar_pass:
+                    st.error("Las contraseñas no coinciden. Inténtalo de nuevo.")
+                else:
+                    try:
+                        supabase.auth.update_user({"password": nueva_pass})
+                        st.success("¡Contraseña actualizada correctamente! 🔒")
+                    except Exception as e:
+                        st.error(f"Error al cambiar la contraseña: {e}")
   
         elif menu == "Panel de Administración":
             st.title("📊 Control Docente")
