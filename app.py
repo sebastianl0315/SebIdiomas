@@ -485,7 +485,7 @@ def main():
                 "10-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-A 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
                 "11-B 2026": ["Personal Information Basics", "Verb to be", "Present Simple"],
-                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple"],
+                "Grupo_Prueba": ["Personal Information Basics", "Verb to be", "Present Simple", "There is / There are" "Adjectives"],
             }
 
             try:
