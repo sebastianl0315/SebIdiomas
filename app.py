@@ -139,6 +139,7 @@ def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
         f"El estudiante respondió: '{respuesta_usuario}'. "
         "Explica de forma breve, amable y en español de Colombia por qué la respuesta del estudiante es incorrecta "
         "y cuál es la regla gramatical que debe aplicar. Máximo 3 oraciones."
+        "Si la respuesta debió ser aceptada como correcta, dile que la reporte con el botón de la respuesta era correcta "
     )
 
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
