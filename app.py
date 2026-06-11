@@ -554,7 +554,16 @@ def main():
                         resp_user = st.text_input("Tu respuesta:", key=f"in_{ex_id}", disabled=st.session_state.respondido).lower().strip()
                     elif tipo == "multiple_choice":
                         st.write(f"**Pregunta:** {contenido['question']}")
-                        resp_user = st.radio("Opciones:", contenido['options'], key=f"rad_{ex_id}", disabled=st.session_state.respondido)
+                        
+                        # LEER LAS OPCIONES MEZCLADAS: Si por alguna razón está vacía, cae en el orden original por seguridad
+                        opciones_a_mostrar = st.session_state.get('opciones_mezcladas', contenido['options'])
+                        
+                        resp_user = st.radio(
+                            "Opciones:", 
+                            opciones_a_mostrar, 
+                            key=f"rad_{ex_id}", 
+                            disabled=st.session_state.respondido
+                        )
                     elif tipo == 'scrambled':
                         palabras = contenido['words']
                         random.shuffle(palabras)
