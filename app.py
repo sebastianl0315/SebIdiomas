@@ -151,7 +151,7 @@ def explicar_error_ia(pregunta, respuesta_correcta, respuesta_usuario, tema):
         return "Lo siento, no pude conectar con el profe IA en este momento."
     return "No pude generar la explicación."
 
-def reset_password_admin(email):
+def res_password_admin(email):
     try:
         supabase.auth.reset_password_for_email(email)
         return True
@@ -268,40 +268,52 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-
+ 
     # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
-    # 1. Asegurar que las variables clave existan en el session_state
+    
+    # 1. Inicializar variables de estado indispensables
     if "user" not in st.session_state:
         st.session_state.user = None
+    if "cookies_initialized" not in st.session_state:
+        st.session_state.cookies_initialized = False
 
-    # 2. Si no hay usuario en sesión, intentamos restaurar agresivamente desde la cookie
-    if st.session_state.user is None:
-        sb_session_token = controller.get("sb_session")
-        
-        if sb_session_token:
-            try:
-                # Restauramos la sesión en el cliente de Supabase
-                res_sesion = supabase.auth.set_session(
-                    sb_session_token["access_token"], 
-                    sb_session_token["refresh_token"]
-                )
-                if res_sesion and res_sesion.user:
-                    st.session_state.user = res_sesion.user
-                    
-                    # Sincronizamos inmediatamente los tokens frescos en la cookie
-                    session_data = {
-                        "access_token": res_sesion.session.access_token,
-                        "refresh_token": res_sesion.session.refresh_token
-                    }
-                    controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
-                    
-                    # Forzamos un rerun rápido para reflejar que el usuario ya está autenticado
-                    st.rerun()
-            except Exception as e:
-                # Si el token falló o expiró definitivamente, limpiamos
-                controller.remove("sb_session")
-                st.session_state.user = None                
+    # 2. Intentar leer la cookie de Supabase
+    sb_session_token = controller.get("sb_session")
+
+    # 3. Mecanismo de espera en el primer renderizado tras F5
+    # Si controller.get devuelve None pero nunca hemos verificado las cookies en esta corrida,
+    # esperamos un breve instante y forzamos un ciclo de reloj para dar tiempo a que cargue JS.
+    if sb_session_token is None and not st.session_state.cookies_initialized:
+        import time
+        time.sleep(0.2)  # Pequeña pausa imperceptible de 200ms para que reaccione el navegador
+        st.session_state.cookies_initialized = True
+        st.rerun()
+
+    # 4. Si después del intento/espera realmente hay un token guardado, restauramos
+    if st.session_state.user is None and sb_session_token:
+        try:
+            # Restauramos la sesión en el cliente de Supabase
+            res_sesion = supabase.auth.set_session(
+                sb_session_token["access_token"], 
+                sb_session_token["refresh_token"]
+            )
+            if res_sesion and res_sesion.user:
+                st.session_state.user = res_sesion.user
                 
+                # Sincronizamos inmediatamente los tokens frescos en la cookie
+                session_data = {
+                    "access_token": res_sesion.session.access_token,
+                    "refresh_token": res_sesion.session.refresh_token
+                }
+                controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
+                
+                # Forzamos rerun para pintar inmediatamente el entorno de estudio
+                st.rerun()
+        except Exception as e:
+            # Si el token falló o expiró definitivamente, limpiamos por seguridad
+            controller.remove("sb_session")
+            st.session_state.user = None    
+            
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
 
@@ -376,6 +388,7 @@ def main():
                         res = login_user(email, password)
                         if res:
                             st.session_state.user = res.user
+                            st.session_state.cookies_initialized = True # <-- Agregar esto en el login exitoso
                             # Guardamos los tokens en una cookie que dure 30 días
                             session_data = {
                                 "access_token": res.session.access_token,
