@@ -279,6 +279,12 @@ def main():
                 res_sesion = supabase.auth.set_session(sb_session_token["access_token"], sb_session_token["refresh_token"])
                 if res_sesion and res_sesion.user:
                     st.session_state.user = res_sesion.user
+                    # Actualizar la cookie con los tokens refrescados por seguridad
+                    session_data = {
+                        "access_token": res_sesion.session.access_token,
+                        "refresh_token": res_sesion.session.refresh_token
+                    }
+                    controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
             except Exception as e:
                 # Si el token expiró o falló, removemos la cookie dañada
                 controller.remove("sb_session")
