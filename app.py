@@ -269,7 +269,7 @@ def main():
         </style>
     """, unsafe_allow_html=True)
  
-    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
+   # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
     
     # 1. Inicializar variables de estado indispensables
     if "user" not in st.session_state:
@@ -277,15 +277,20 @@ def main():
     if "cookies_initialized" not in st.session_state:
         st.session_state.cookies_initialized = False
 
-    # 2. Intentar leer la cookie de Supabase
-    sb_session_token = controller.get("sb_session")
+    # 2. Intentar leer la cookie de Supabase protegiendo la carga asíncrona
+    sb_session_token = None
+    try:
+        sb_session_token = controller.get("sb_session")
+    except TypeError:
+        # Captura el fallo cuando self.__cookies aún no está listo internamente en la librería
+        pass
 
     # 3. Mecanismo de espera en el primer renderizado tras F5
-    # Si controller.get devuelve None pero nunca hemos verificado las cookies en esta corrida,
-    # esperamos un breve instante y forzamos un ciclo de reloj para dar tiempo a que cargue JS.
+    # Si la librería falló o devolvió None pero es la primera pasada del script tras el F5,
+    # pausamos brevemente (200ms) para que cargue el JS y forzamos un ciclo de reloj limpio.
     if sb_session_token is None and not st.session_state.cookies_initialized:
         import time
-        time.sleep(0.2)  # Pequeña pausa imperceptible de 200ms para que reaccione el navegador
+        time.sleep(0.2)  # Pausa imperceptible y segura para el navegador
         st.session_state.cookies_initialized = True
         st.rerun()
 
@@ -311,8 +316,11 @@ def main():
                 st.rerun()
         except Exception as e:
             # Si el token falló o expiró definitivamente, limpiamos por seguridad
-            controller.remove("sb_session")
-            st.session_state.user = None    
+            try:
+                controller.remove("sb_session")
+            except:
+                pass
+            st.session_state.user = None
             
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
