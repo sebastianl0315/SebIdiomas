@@ -268,26 +268,39 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
- 
+
+    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
+    # 1. Asegurar que las variables clave existan en el session_state
     if "user" not in st.session_state:
         st.session_state.user = None
-        # Intentamos recuperar el token de Supabase guardado en el navegador
+
+    # 2. Si no hay usuario en sesión, intentamos restaurar agresivamente desde la cookie
+    if st.session_state.user is None:
         sb_session_token = controller.get("sb_session")
+        
         if sb_session_token:
             try:
-                # Le decimos a Supabase que use el token guardado para restaurar la sesión
-                res_sesion = supabase.auth.set_session(sb_session_token["access_token"], sb_session_token["refresh_token"])
+                # Restauramos la sesión en el cliente de Supabase
+                res_sesion = supabase.auth.set_session(
+                    sb_session_token["access_token"], 
+                    sb_session_token["refresh_token"]
+                )
                 if res_sesion and res_sesion.user:
                     st.session_state.user = res_sesion.user
-                    # Actualizar la cookie con los tokens refrescados por seguridad
+                    
+                    # Sincronizamos inmediatamente los tokens frescos en la cookie
                     session_data = {
                         "access_token": res_sesion.session.access_token,
                         "refresh_token": res_sesion.session.refresh_token
                     }
                     controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
+                    
+                    # Forzamos un rerun rápido para reflejar que el usuario ya está autenticado
+                    st.rerun()
             except Exception as e:
-                # Si el token expiró o falló, removemos la cookie dañada
+                # Si el token falló o expiró definitivamente, limpiamos
                 controller.remove("sb_session")
+                st.session_state.user = None                
                 
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
