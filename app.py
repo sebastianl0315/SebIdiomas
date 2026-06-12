@@ -269,44 +269,47 @@ def main():
         </style>
     """, unsafe_allow_html=True)
  
-   # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
-    
+    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
     # 1. Inicializar variables de estado indispensables
     if "user" not in st.session_state:
         st.session_state.user = None
-    if "cookie_checked" not in st.session_state:
-        st.session_state.cookie_checked = False
+    if "cookie_attempts" not in st.session_state:
+        st.session_state.cookie_attempts = 0
 
-    # 2. Intentar leer la cookie de Supabase de forma segura
+    # 2. Bucle de rescate asíncrono para F5
+    # Si no hay usuario en sesión y llevamos menos de 3 intentos buscando la cookie, 
+    # le damos tiempo al JavaScript de responder antes de decidir que no hay nadie logueado.
+    if st.session_state.user is None and st.session_state.cookie_attempts < 3:
+        sb_session_token = None
+        try:
+            sb_session_token = controller.get("sb_session")
+        except TypeError:
+            pass
+
+        if sb_session_token is None:
+            import time
+            time.sleep(0.2)  # Pequeña pausa de 200ms para que cargue el navegador
+            st.session_state.cookie_attempts += 1
+            st.rerun()
+
+    # 3. Intentar leer la cookie de forma definitiva para esta pasada
     sb_session_token = None
     try:
         sb_session_token = controller.get("sb_session")
     except TypeError:
         pass
 
-    # 3. PANTALLA DE ESPERA REACTIVA TRAS UN REFRESCO (F5)
-    # Si no hay usuario en memoria, no hemos validado la cookie aún y el componente 
-    # sigue devolviendo None, mostramos un spinner y forzamos un re-intento.
-    if st.session_state.user is None and sb_session_token is None and not st.session_state.cookie_checked:
-        with st.spinner("🔄 Conectando con SebIdiomas..."):
-            import time
-            time.sleep(0.4)  # Tiempo prudente para que se inicialice el JS en el dispositivo móvil
-            st.session_state.cookie_checked = True
-            st.rerun()
-
-    # 4. Si hay un token guardado y no hay usuario en sesión, restauramos
+    # 4. Si encontramos el token, restauramos en Supabase de inmediato
     if st.session_state.user is None and sb_session_token:
         try:
-            # Restauramos la sesión en el cliente de Supabase
             res_sesion = supabase.auth.set_session(
                 sb_session_token["access_token"], 
                 sb_session_token["refresh_token"]
             )
             if res_sesion and res_sesion.user:
                 st.session_state.user = res_sesion.user
-                st.session_state.cookie_checked = True
                 
-                # Sincronizamos los tokens en la cookie protegiendo la escritura
+                # Refrescamos los tokens dentro de la cookie por seguridad
                 session_data = {
                     "access_token": res_sesion.session.access_token,
                     "refresh_token": res_sesion.session.refresh_token
@@ -315,17 +318,13 @@ def main():
                     controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
                 except TypeError:
                     pass
-                
-                # Forzamos un rerun rápido para renderizar el entorno de estudio
                 st.rerun()
         except Exception as e:
-            # Si el token falló o expiró definitivamente, limpiamos por seguridad
             try:
                 controller.remove("sb_session")
             except:
                 pass
             st.session_state.user = None
-            st.session_state.cookie_checked = True
             
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
@@ -404,7 +403,7 @@ def main():
                         res = login_user(email, password)
                         if res:
                             st.session_state.user = res.user
-                            st.session_state.cookie_checked = True # <-- CAMBIAR AQUÍ
+                            st.session_state.cookie_attempts = 3 # Marcamos como completado para evitar esperas tras el login manual
             
                             session_data = {
                                 "access_token": res.session.access_token,
@@ -950,10 +949,15 @@ def main():
                    st.error(f"Error al cargar metas: {e}")                   
                          
                     
-  #-------CERRAR SESIÓN------------------        
+  # ------- CERRAR SESIÓN ------------------        
         st.sidebar.divider()
         if st.sidebar.button("Cerrar Sesión", use_container_width=True):
-            controller.remove("sb_session")
+            try:
+                controller.remove("sb_session")
+            except:
+                pass
             st.session_state.user = None            
+            st.session_state.cookie_attempts = 0 # Permite que el próximo login evalúe cookies de nuevo
+            st.rerun()        
 if __name__ == "__main__":
     main()
