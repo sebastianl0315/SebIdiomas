@@ -269,63 +269,63 @@ def main():
         </style>
     """, unsafe_allow_html=True)
  
-    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
-    # 1. Inicializar variables de estado indispensables
+    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5 con Query Params) ---
+    
+    # 1. Asegurar que las variables base existan en el session_state
     if "user" not in st.session_state:
         st.session_state.user = None
-    if "cookie_attempts" not in st.session_state:
-        st.session_state.cookie_attempts = 0
 
-    # 2. Bucle de rescate asíncrono para F5
-    # Si no hay usuario en sesión y llevamos menos de 3 intentos buscando la cookie, 
-    # le damos tiempo al JavaScript de responder antes de decidir que no hay nadie logueado.
-    if st.session_state.user is None and st.session_state.cookie_attempts < 3:
+    # 2. PUENTE DE SEGURIDAD: Si perdimos el state por F5 pero la URL tiene el flag de login activo,
+    # forzamos una lectura limpia esperando al componente de JavaScript.
+    if st.session_state.user is None and "logged_in" in st.query_params:
+        sb_session_token = None
+        # Le damos un momento real al componente para que no devuelva None por asincronía
+        import time
+        time.sleep(0.4) 
+        try:
+            sb_session_token = controller.get("sb_session")
+        except TypeError:
+            pass
+
+        if sb_session_token:
+            try:
+                res_sesion = supabase.auth.set_session(
+                    sb_session_token["access_token"], 
+                    sb_session_token["refresh_token"]
+                )
+                if res_sesion and res_sesion.user:
+                    st.session_state.user = res_sesion.user
+                    st.rerun()
+            except Exception as e:
+                pass
+        else:
+            # Si tras la espera la cookie de verdad no existe, limpiamos el parámetro de la URL
+            st.query_params.clear()
+
+    # 3. Validar de forma ordinaria si la cookie aparece espontáneamente
+    if st.session_state.user is None:
         sb_session_token = None
         try:
             sb_session_token = controller.get("sb_session")
         except TypeError:
             pass
 
-        if sb_session_token is None:
-            import time
-            time.sleep(0.2)  # Pequeña pausa de 200ms para que cargue el navegador
-            st.session_state.cookie_attempts += 1
-            st.rerun()
-
-    # 3. Intentar leer la cookie de forma definitiva para esta pasada
-    sb_session_token = None
-    try:
-        sb_session_token = controller.get("sb_session")
-    except TypeError:
-        pass
-
-    # 4. Si encontramos el token, restauramos en Supabase de inmediato
-    if st.session_state.user is None and sb_session_token:
-        try:
-            res_sesion = supabase.auth.set_session(
-                sb_session_token["access_token"], 
-                sb_session_token["refresh_token"]
-            )
-            if res_sesion and res_sesion.user:
-                st.session_state.user = res_sesion.user
-                
-                # Refrescamos los tokens dentro de la cookie por seguridad
-                session_data = {
-                    "access_token": res_sesion.session.access_token,
-                    "refresh_token": res_sesion.session.refresh_token
-                }
-                try:
-                    controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
-                except TypeError:
-                    pass
-                st.rerun()
-        except Exception as e:
+        if sb_session_token:
             try:
-                controller.remove("sb_session")
-            except:
-                pass
-            st.session_state.user = None
-            
+                res_sesion = supabase.auth.set_session(
+                    sb_session_token["access_token"], 
+                    sb_session_token["refresh_token"]
+                )
+                if res_sesion and res_sesion.user:
+                    st.session_state.user = res_sesion.user
+                    st.query_params["logged_in"] = "true"  # Sello en la URL
+                    st.rerun()
+            except Exception as e:
+                try:
+                    controller.remove("sb_session")
+                except:
+                    pass
+    
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
 
@@ -403,7 +403,9 @@ def main():
                         res = login_user(email, password)
                         if res:
                             st.session_state.user = res.user
-                            st.session_state.cookie_attempts = 3 # Marcamos como completado para evitar esperas tras el login manual
+                            
+                            # Marcamos la URL de forma síncrona e inmediata
+                            st.query_params["logged_in"] = "true"
             
                             session_data = {
                                 "access_token": res.session.access_token,
@@ -957,7 +959,7 @@ def main():
             except:
                 pass
             st.session_state.user = None            
-            st.session_state.cookie_attempts = 0 # Permite que el próximo login evalúe cookies de nuevo
-            st.rerun()        
+            st.query_params.clear()  # Borra el ?logged_in=true de la barra de direcciones
+            st.rerun()     
 if __name__ == "__main__":
     main()
