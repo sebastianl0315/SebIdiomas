@@ -269,28 +269,30 @@ def main():
         </style>
     """, unsafe_allow_html=True)
  
-    # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
+   # --- VERIFICACIÓN Y PERSISTENCIA DE SESIÓN (RESISTENTE A F5) ---
     
     # 1. Inicializar variables de estado indispensables
     if "user" not in st.session_state:
         st.session_state.user = None
-    if "cookies_initialized" not in st.session_state:
-        st.session_state.cookies_initialized = False
+    if "cookie_checked" not in st.session_state:
+        st.session_state.cookie_checked = False
 
     # 2. Intentar leer la cookie de Supabase de forma segura
     sb_session_token = None
     try:
         sb_session_token = controller.get("sb_session")
     except TypeError:
-        # Captura el fallo si self.__cookies aún no está listo en el componente
         pass
 
-    # 3. Mecanismo de espera en el primer renderizado tras F5
-    if sb_session_token is None and not st.session_state.cookies_initialized:
-        import time
-        time.sleep(0.2)  # Pausa de 200ms para permitir la carga de JavaScript
-        st.session_state.cookies_initialized = True
-        st.rerun()
+    # 3. PANTALLA DE ESPERA REACTIVA TRAS UN REFRESCO (F5)
+    # Si no hay usuario en memoria, no hemos validado la cookie aún y el componente 
+    # sigue devolviendo None, mostramos un spinner y forzamos un re-intento.
+    if st.session_state.user is None and sb_session_token is None and not st.session_state.cookie_checked:
+        with st.spinner("🔄 Conectando con SebIdiomas..."):
+            import time
+            time.sleep(0.4)  # Tiempo prudente para que se inicialice el JS en el dispositivo móvil
+            st.session_state.cookie_checked = True
+            st.rerun()
 
     # 4. Si hay un token guardado y no hay usuario en sesión, restauramos
     if st.session_state.user is None and sb_session_token:
@@ -302,6 +304,7 @@ def main():
             )
             if res_sesion and res_sesion.user:
                 st.session_state.user = res_sesion.user
+                st.session_state.cookie_checked = True
                 
                 # Sincronizamos los tokens en la cookie protegiendo la escritura
                 session_data = {
@@ -311,7 +314,6 @@ def main():
                 try:
                     controller.set("sb_session", session_data, expires=datetime.datetime.now() + datetime.timedelta(days=30))
                 except TypeError:
-                    # Si el componente aún no permite la escritura en esta pasada, ignoramos
                     pass
                 
                 # Forzamos un rerun rápido para renderizar el entorno de estudio
@@ -323,6 +325,7 @@ def main():
             except:
                 pass
             st.session_state.user = None
+            st.session_state.cookie_checked = True
             
     if "recovery_mode" not in st.session_state:
         st.session_state.recovery_mode = False
